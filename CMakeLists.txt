@@ -73,7 +73,6 @@ if(INSTALL_DEPENDENCIES)
   #
   foreach(_package
       Dist::Zilla
-      Alien::cmake3
       Dist::Zilla::Plugin::Git::NextVersion
       Dist::Zilla::Plugin::OurPkgVersion
       Dist::Zilla::Plugin::Authority
@@ -105,6 +104,20 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::DynamicPrereqs
       Pod::Weaver::PluginBundle::RJBS
       Dist::Zilla::Plugin::Git::GatherDir
+      Dist::Zilla::Plugin::AlienBuild
+      #
+      # We have an alienfile that is a modified versio of Alien::cmake3
+      # Let's pull in Alien::cmake3 and its explicit dependencies
+      #
+      Alien::cmake3
+      Alien::Build
+      File::Which
+      Path::Tiny
+      Capture::Tiny
+      Alien::Build::Plugin::Build::Autoconf
+      #
+      # We use ExtUtils::Constant to create constants
+      #
       ExtUtils::Constant
     )
     message(STATUS "Checking for ${_package}")
@@ -124,7 +137,7 @@ set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 #
 add_custom_target(marpaESLIFPerlClean
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- clean --verbose
-  WORKDIR_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #
 # marpaESLIFPerlPackage
