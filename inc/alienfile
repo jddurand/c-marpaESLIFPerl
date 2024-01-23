@@ -1,0 +1,40 @@
+use alienfile;
+
+plugin PkgConfig => 'opencv4';
+
+share {
+  meta->before_hook( build => sub {
+          die "Share install not yet supported on MSWin32" if $^O eq 'MSWin32';
+  });
+
+  plugin 'Download::GitHub' => (
+    github_user => 'opencv',
+    github_repo => 'opencv',
+    version => qr/([0-9\.]+)/,
+    prefer  => sub {
+      my ($self, $data) = @_;
+
+      # only want version 4.x
+      @{ $data->{list} } = grep
+        $_->{version} =~ /^4\./,
+        @{ $data->{list} };
+
+      return $data;
+    }
+  );
+  plugin 'Build::CMake';
+  build [
+    ['%{cmake}',
+      @{ meta->prop->{plugin_build_cmake}->{args} },
+      qw(
+        -DBUILD_TESTS=OFF
+      ),
+      # macOS currently has problems during build with zlib
+      ( $^O eq 'darwin' ?  qw(-DBUILD_ZLIB=OFF) : () ),
+      qw(-S), '%{.install.extract}',
+      qw(-B build),
+    ],
+    [ '%{make}', qw( -C build ) ],
+    [ '%{make}', qw( -C build ), 'install' ],
+  ];
+}
