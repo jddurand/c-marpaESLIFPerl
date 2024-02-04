@@ -160,13 +160,12 @@ set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 file(GLOB deps LIST_DIRECTORIES true "${CMAKE_HELPERS_FETCHCONTENT_BASE_DIR}/*-src")
 set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/create_tar_gz.pl)
 set(deps-tgz)
-execute_process(
-  COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs
-)
+set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs)
+execute_process(COMMAND ${CMAKE_COMMAND} -E rm -rf ${tarballs-destdir})
+execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${tarballs-destdir})
 foreach(dep IN LISTS deps)
   cmake_path(GET dep FILENAME depname-src)
-  set(dep-tgz ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs/${depname-src}.tar.gz)
+  set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} .
@@ -179,7 +178,7 @@ endforeach()
 # Generate a minimal marpaeslifperl-src.tar.gz
 #
 set(depname-src marpaeslifperl-src)
-set(dep-tgz ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs/${depname-src}.tar.gz)
+set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt
