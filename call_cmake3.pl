@@ -25,6 +25,7 @@ sub wanted {
 
     if ($basename =~ /^(.+)-src.tar.gz$/) {
         my $envvar = 'CMAKE_HELPERS_DEPEND_' . uc($1) . '_FILE';
+        $envvar =~ s/[^a-zA-Z0-9_]/_/g;
         print "Setting environment variable $envvar to $absolute\n";
         $ENV{$envvar} = $absolute;
     }
@@ -36,6 +37,10 @@ my $alienfile = File::Spec->catfile($inc_dir, 'marpaESLIFPerl', 'alienfile');
 my $prefix    = File::Spec->catdir($inc_dir, 'local');
 my $stage     = File::Spec->catdir($inc_dir, 'stage');
 
+#
+# We want to control where things are installed
+#
+$ENV{DESTDIR} = abs_path(File::Spec->catdir(File::Spec->curdir, 'marpaESLIF_install'));
 my $build = Alien::Build->load($alienfile);
 $build->load_requires('configure');
 $build->set_prefix($prefix);
