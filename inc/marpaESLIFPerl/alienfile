@@ -1,0 +1,14 @@
+use alienfile;
+
+probe sub {
+  my ($build) = @_;
+  # No special hook
+};
+
+share {
+    requires 'Alien::cmake3';
+    start_url 'inc/marpaESLIFPerl/tarballs/marpaeslifperl-src.tar.gz';
+    plugin Download => ();
+    plugin Extract => 'tar.gz';
+    plugin 'Build::CMake';
+};

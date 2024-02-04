@@ -160,12 +160,13 @@ set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 file(GLOB deps LIST_DIRECTORIES true "${CMAKE_HELPERS_FETCHCONTENT_BASE_DIR}/*-src")
 set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/create_tar_gz.pl)
 set(deps-tgz)
+execute_process(
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs
+)
 foreach(dep IN LISTS deps)
-  #
-  # Make dep.tar.gz
-  #
   cmake_path(GET dep FILENAME depname-src)
-  set(dep-tgz ${CMAKE_CURRENT_BINARY_DIR}/${depname-src}.tar.gz)
+  set(dep-tgz ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs/${depname-src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} .
@@ -175,17 +176,23 @@ foreach(dep IN LISTS deps)
   list(APPEND deps-tgz ${dep-tgz})
 endforeach()
 #
-# marpaESLIFPerlDeps
+# Generate a minimal marpaeslifperl-src.tar.gz
 #
-add_custom_target(marpaESLIFPerlDeps
-  DEPENDS ${deps-tgz}
-)
+set(depname-src marpaeslifperl-src)
+set(dep-tgz ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs/${depname-src}.tar.gz)
+  add_custom_command(
+    OUTPUT ${dep-tgz}
+    COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt
+    DEPENDS ${create_tar_gz-pl}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl
+  )
+  list(APPEND deps-tgz ${dep-tgz})
 #
 # marpaESLIFPerlPackage
 #
 add_custom_target(marpaESLIFPerlPackage ALL
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e "${DIST_ZILLA_APP_RUN}" -- build --verbose
-  DEPENDS marpaESLIFPerlDeps
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #
@@ -193,6 +200,7 @@ add_custom_target(marpaESLIFPerlPackage ALL
 #
 add_custom_target(marpaESLIFPerlClean
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- clean --verbose
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #
@@ -201,15 +209,16 @@ add_custom_target(marpaESLIFPerlClean
 add_custom_target(marpaESLIFPerlReleaseTrial
   ${CMAKE_COMMAND} -E echo "${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- release --trial --verbose"
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e "${DIST_ZILLA_APP_RUN}" -- release --trial --verbose
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
-
 #
 # marpaESLIFPerlRelease
 #
 add_custom_target(marpaESLIFPerlRelease
   ${CMAKE_COMMAND} -E echo "${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- release --verbose"
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e "${DIST_ZILLA_APP_RUN}" -- release --verbose
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #
@@ -218,6 +227,7 @@ add_custom_target(marpaESLIFPerlRelease
 add_custom_target(marpaESLIFPerlTest
   ${CMAKE_COMMAND} -E echo "${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- test --verbose"
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e "${DIST_ZILLA_APP_RUN}" -- test --verbose
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 #
@@ -226,5 +236,6 @@ add_custom_target(marpaESLIFPerlTest
 add_custom_target(marpaESLIFPerlXtest
   ${CMAKE_COMMAND} -E echo "${PERL_EXECUTABLE} -MDist::Zilla::App -e ${DIST_ZILLA_APP_RUN} -- xtest --verbose"
   COMMAND ${PERL_EXECUTABLE} -MDist::Zilla::App -e "${DIST_ZILLA_APP_RUN}" -- xtest --verbose
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )

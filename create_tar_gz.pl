@@ -11,7 +11,7 @@ use POSIX qw/EXIT_SUCCESS/;
 my $destfile = shift;
 my $destfile_basename = basename($destfile);
 
-print "Creating $destfile\n";
+# print "Creating $destfile\n";
 
 my @list;
 find({ wanted => \&wanted, no_chdir => 1 }, @ARGV);
@@ -41,7 +41,7 @@ sub wanted {
     #
     # Ok
     #
-    print "[$destfile_basename] $fullname\n";
+    # print "[$destfile_basename] $fullname\n";
     push(@list, $fullname);
 }
 

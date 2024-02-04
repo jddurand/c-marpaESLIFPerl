@@ -1,6 +1,7 @@
 #!env perl
 use Alien::Build;
-use Env::Path;
+use Cwd qw/abs_path/;
+use Env::Path qw/PATH/;
 use File::Basename;
 use File::Find;
 use File::Spec;
@@ -15,23 +16,23 @@ PATH->Append(dirname($cmake3_exe));
 # Collect the tarballs: our CMakeLists.txt will use cmake-helpers
 # that has a hook preventing network access
 #
-find({ wanted => \&wanted, no_chdir => 1 }, File::Spec->curdir);
+find({ wanted => \&wanted, no_chdir => 1 }, 'inc/marpaESLIFPerl/tarballs');
 
 sub wanted {
     my $fullname = File::Spec->canonpath($File::Find::name);
     my $basename = basename($fullname);
+    my $absolute = abs_path($fullname);
 
     if ($basename =~ /^(.+)-src.tar.gz$/) {
         my $envvar = 'CMAKE_HELPERS_DEPEND_' . uc($1) . '_FILE';
-        print "Setting environment variable $envvar to $fullname\n";
-        $ENV{$envvar} = $fullname;
+        print "Setting environment variable $envvar to $absolute\n";
+        $ENV{$envvar} = $absolute;
     }
 }
 
-print "Building marpaESLIF\n";
 $ENV{PKG_CONFIG_PATH} ||= '';
 my $inc_dir   = File::Spec->catdir(File::Spec->curdir, 'inc');
-my $alienfile = File::Spec->catfile($inc_dir, 'marpaESLIF', 'alienfile');
+my $alienfile = File::Spec->catfile($inc_dir, 'marpaESLIFPerl', 'alienfile');
 my $prefix    = File::Spec->catdir($inc_dir, 'local');
 my $stage     = File::Spec->catdir($inc_dir, 'stage');
 

@@ -1,5 +1,0 @@
-use alienfile;
-
-share {
-  plugin 'Build::CMake';
-};

@@ -33,7 +33,7 @@ if($install_type eq 'system') {
 }
 
 open(my $fh, '>', $result_file) || die "Cannot open $result_file, $!";
-print $fh "$cmake\n";
+print $fh "$cmake";
 close($fh) || warn "Cannot close $result_file, $!";
 
 exit(EXIT_SUCCESS);
