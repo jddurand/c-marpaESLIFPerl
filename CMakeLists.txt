@@ -36,6 +36,20 @@ option(INSTALL_DEPENDENCIES "Install Perl dependencies" OFF)
 #
 set(PROJECT_VERSION_TWEAK 1)
 #
+# Get library helper
+#
+include(FetchContent)
+FetchContent_Declare(cmake-helpers GIT_REPOSITORY https://github.com/jddurand/cmake-helpers.git GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(cmake-helpers)
+#
+# marpaESLIF dependency (DEV: How to get it to work with a branch ? Does not for me if I use origin/<branch name>
+#
+set(marpaESLIF_git https://github.com/jddurand/c-marpaESLIF.git)
+cmake_helpers_depend(marpaESLIF
+  EXTERNALPROJECT_ADD_ARGS DOWNLOAD_COMMAND ${GIT_EXECUTABLE} clone --single-branch --branch cmake_helpers ${marpaESLIF_git} ${CMAKE_CURRENT_BINARY_DIR}/_deps/marpaeslif-src
+  FIND FALSE # We force a build of marpaESLIF
+)
+#
 # We require perl
 #
 find_package(Perl REQUIRED)
@@ -106,7 +120,7 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::Git::GatherDir
       Dist::Zilla::Plugin::AlienBuild
       #
-      # We have an alienfile that is a modified versio of Alien::cmake3
+      # We have an alienfile that is a modified version of Alien::cmake3
       # Let's pull in Alien::cmake3 and its explicit dependencies
       #
       Alien::cmake3
@@ -119,6 +133,15 @@ if(INSTALL_DEPENDENCIES)
       # We use ExtUtils::Constant to create constants
       #
       ExtUtils::Constant
+      #
+      # We create ourself tarballs of marpaESLIF and all its dependencies
+      #
+      Archive::Tar
+      File::Basename
+      File::Find
+      File::Spec
+      POSIX
+      Env::Path
     )
     message(STATUS "Checking for ${_package}")
     execute_process(
@@ -133,13 +156,34 @@ endif()
 #
 set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 #
+# Make tarballs of dependencies
+#
+file(GLOB deps LIST_DIRECTORIES true "${CMAKE_HELPERS_FETCHCONTENT_BASE_DIR}/*-src")
+set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/create_tar_gz.pl)
+set(deps-tgz)
+foreach(dep IN LISTS deps)
+  #
+  # Make dep.tar.gz
+  #
+  cmake_path(GET dep FILENAME depname-src)
+  set(dep-tgz ${CMAKE_CURRENT_BINARY_DIR}/${depname-src}.tar.gz)
+  add_custom_command(
+    OUTPUT ${dep-tgz}
+    COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} .
+    DEPENDS ${create_tar_gz-pl}
+    WORKING_DIRECTORY ${dep}
+  )
+  list(APPEND deps-tgz ${dep-tgz})
+endforeach()
+#
 # marpaESLIFPerlCopy
 #
 add_custom_target(marpaESLIFPerlCopy
   COMMAND ${CMAKE_COMMAND} -E rm -rf dist.ini t lib
-  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/dist.ini dist.ini
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/t t
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lib lib
+  COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/src/dist.ini dist.ini
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/t t
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/src/lib lib
+  DEPENDS ${deps-tgz}
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 #
