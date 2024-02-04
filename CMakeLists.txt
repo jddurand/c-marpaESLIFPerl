@@ -48,6 +48,7 @@ set(marpaESLIF_git https://github.com/jddurand/c-marpaESLIF.git)
 cmake_helpers_depend(marpaESLIF
   EXTERNALPROJECT_ADD_ARGS DOWNLOAD_COMMAND ${GIT_EXECUTABLE} clone --single-branch --branch cmake_helpers ${marpaESLIF_git} ${CMAKE_CURRENT_BINARY_DIR}/_deps/marpaeslif-src
   FIND FALSE # We force a build of marpaESLIF
+  MAKEAVAILABLE TRUE
 )
 #
 # We require perl
@@ -182,7 +183,7 @@ set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt
-    DEPENDS ${create_tar_gz-pl}
+    DEPENDS ${create_tar_gz-pl} marpaESLIF
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl
   )
   list(APPEND deps-tgz ${dep-tgz})

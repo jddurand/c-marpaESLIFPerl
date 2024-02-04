@@ -4,7 +4,7 @@ project(marpaESLIFPerl)
 # Get library helper
 #
 include(FetchContent)
-FetchContent_Declare(cmake-helpers URL $ENV{CMAKE_HELPERS_DEPEND_CMAKE-HELPERS_FILE})
+FetchContent_Declare(cmake-helpers URL $ENV{CMAKE_HELPERS_DEPEND_CMAKE_HELPERS_FILE})
 FetchContent_MakeAvailable(cmake-helpers)
 #
 # C.f. the with environment variables
