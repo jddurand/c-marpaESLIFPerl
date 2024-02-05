@@ -31,22 +31,29 @@ sub wanted {
     }
 }
 
+#
+# We want to control where things are installed on both Windows and Unix using DESTDIR and prefix
+#
 $ENV{PKG_CONFIG_PATH} ||= '';
-my $inc_dir   = File::Spec->catdir(File::Spec->curdir, 'inc');
+my $inc_dir   = abs_path(File::Spec->catdir(File::Spec->curdir, 'inc'));
 my $alienfile = File::Spec->catfile($inc_dir, 'marpaESLIFPerl', 'alienfile');
 my $prefix    = File::Spec->catdir($inc_dir, 'local');
 my $stage     = File::Spec->catdir($inc_dir, 'stage');
 
-#
-# We want to control where things are installed
-#
-$ENV{DESTDIR} = abs_path(File::Spec->catdir(File::Spec->curdir, 'marpaESLIF_install'));
+delete $ENV{DESTDIR};
+print "[Alien::marpaESLIF] Loading $alienfile\n";
 my $build = Alien::Build->load($alienfile);
+print "[Alien::marpaESLIF] Configuring\n";
 $build->load_requires('configure');
+print "[Alien::marpaESLIF] Set prefix to $prefix\n";
 $build->set_prefix($prefix);
+print "[Alien::marpaESLIF] Set stage to $stage\n";
 $build->set_stage($stage);
+print "[Alien::marpaESLIF] Load install type requirements\n";
 $build->load_requires($build->install_type);
+print "[Alien::marpaESLIF] Download\n";
 $build->download;
+print "[Alien::marpaESLIF] Build\n";
 $build->build;
 
 exit(EXIT_SUCCESS);
