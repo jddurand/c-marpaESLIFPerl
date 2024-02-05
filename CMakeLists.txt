@@ -187,7 +187,7 @@ set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt
-    DEPENDS ${create_tar_gz-pl} marpaESLIF
+    DEPENDS ${create_tar_gz-pl}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl
   )
   list(APPEND deps-tgz ${dep-tgz})
