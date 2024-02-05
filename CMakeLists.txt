@@ -24,7 +24,7 @@
 # Local tests done with: cmake -S c-marpaESLIFPerl -B c-marpaESLIFPerl-build -DCMAKE_HELPERS_DEBUG=OFF -DICU_ROOT=C:\icu4c-74_2-Win64-MSVC2019
 #
 cmake_minimum_required(VERSION 3.26.0 FATAL_ERROR)
-project(marpaESLIFPerl LANGUAGES C) # We will set version later
+project(marpaESLIFPerl) # We will set version later
 #
 # Option to install perl dependencies. OFF is the default: packagers are assumed to
 # have already pre-installed on their builders.

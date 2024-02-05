@@ -31,16 +31,11 @@ sub wanted {
     }
 }
 
-#
-# We want to control where things are installed on both Windows and Unix using DESTDIR and prefix
-#
 $ENV{PKG_CONFIG_PATH} ||= '';
-my $inc_dir   = abs_path(File::Spec->catdir(File::Spec->curdir, 'inc'));
-my $alienfile = File::Spec->catfile($inc_dir, 'marpaESLIFPerl', 'alienfile');
-my $prefix    = File::Spec->catdir($inc_dir, 'local');
-my $stage     = File::Spec->catdir($inc_dir, 'stage');
+my $alienfile = 'inc/marpaESLIF/alienfile';
+my $prefix = '/usr/local';
+my $stage = File::Spec->catdir(abs_path(File::Spec->curdir), 'stage');
 
-delete $ENV{DESTDIR};
 print "[Alien::marpaESLIF] Loading $alienfile\n";
 my $build = Alien::Build->load($alienfile);
 print "[Alien::marpaESLIF] Configuring\n";
