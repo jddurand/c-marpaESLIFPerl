@@ -17,7 +17,7 @@ share {
           @{ meta->prop->{plugin_build_cmake}->{args} },
           # ... put extra cmake args here ...
           # '-DCMAKE_HELPERS_DEBUG=ON',
-          '-DPREFER_STATIC_DEPENDENCIES=ON',
+          # '-DPREFER_STATIC_DEPENDENCIES=ON',
           '%{.install.extract}'
         ],
         '%{make}',

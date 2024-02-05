@@ -51,6 +51,7 @@ FetchContent_MakeAvailable(cmake-helpers)
 set(marpaESLIF_git https://github.com/jddurand/c-marpaESLIF.git)
 cmake_helpers_depend(marpaESLIF
   EXTERNALPROJECT_ADD_ARGS DOWNLOAD_COMMAND ${GIT_EXECUTABLE} clone --single-branch --branch cmake_helpers ${marpaESLIF_git} ${CMAKE_CURRENT_BINARY_DIR}/_deps/marpaeslif-src
+  CMAKE_ARGS -DPREFER_STATIC_DEPENDENCIES=ON
   FIND FALSE # We force a build of marpaESLIF
   MAKEAVAILABLE TRUE
 )
