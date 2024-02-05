@@ -39,7 +39,11 @@ set(PROJECT_VERSION_TWEAK 1)
 # Get library helper
 #
 include(FetchContent)
-FetchContent_Declare(cmake-helpers GIT_REPOSITORY https://github.com/jddurand/cmake-helpers.git GIT_SHALLOW TRUE)
+if("x$ENV{CMAKE_HELPERS_DEPEND_CMAKE_HELPERS_FILE}" STREQUAL "x")
+  FetchContent_Declare(cmake-helpers GIT_REPOSITORY https://github.com/jddurand/cmake-helpers.git GIT_SHALLOW TRUE)
+else()
+  FetchContent_Declare(cmake-helpers URL $ENV{CMAKE_HELPERS_DEPEND_CMAKE_HELPERS_FILE})
+endif()
 FetchContent_MakeAvailable(cmake-helpers)
 #
 # marpaESLIF dependency (DEV: How to get it to work with a branch ? Does not for me if I use origin/<branch name>
