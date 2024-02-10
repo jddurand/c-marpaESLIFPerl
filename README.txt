@@ -5,8 +5,6 @@ cmake --build c-marpaESLIFPerl-build
 
 tarballs of all dependents are then pushed to inc/marpaESLIF/tarballs, default rule is to produce a package MarpaX-ESLIF-<VERSION>.tar.gz in the source dir:
 
-cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlPackage
-
 One can test the perl distribution with standard commands, i.e. (with your installed make):
 
 cd c-marpaESLIFPerl/MarpaX-ESLIF-<VERSION>
