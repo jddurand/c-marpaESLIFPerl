@@ -36,10 +36,12 @@ sub wanted {
 # default, dislike very much the presence of symlinks, c.f.
 # https://github.com/Perl-Toolchain-Gang/ExtUtils-Manifest/issues/16
 #
+print "Setting environment variable CMAKE_HELPERS_NAMELINK_SKIP to 1\n";
 $ENV{CMAKE_HELPERS_NAMELINK_SKIP} = 1;
 #
 # Alien is quite pkgconfig oriented. The following will silence a lot of things.
 #
+print "Setting environment variable PKG_CONFIG_PATH to empty string if not yet defined\n";
 $ENV{PKG_CONFIG_PATH} ||= '';
 my $alienfile = 'inc/marpaESLIF/alienfile';
 my $prefix = '/usr/local';
