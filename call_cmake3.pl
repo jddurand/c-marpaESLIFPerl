@@ -39,6 +39,12 @@ sub wanted {
 print "Setting environment variable CMAKE_HELPERS_NAMELINK_SKIP to 1\n";
 $ENV{CMAKE_HELPERS_NAMELINK_SKIP} = 1;
 #
+# The environment variable CMAKE_HELPERS_WIN32_PACKAGING will force our cmake-helpers library
+# to install all dependencies in addition to the top-level target
+#
+print "Setting environment variable CMAKE_HELPERS_WIN32_PACKAGING to 1\n";
+$ENV{CMAKE_HELPERS_WIN32_PACKAGING} = 1;
+#
 # Alien is quite pkgconfig oriented. The following will silence a lot of things.
 #
 print "Setting environment variable PKG_CONFIG_PATH to empty string if not yet defined\n";
