@@ -18,6 +18,7 @@ share {
           # ... put extra cmake args here ...
           # '-DCMAKE_HELPERS_DEBUG=ON',
           '-DPREFER_STATIC_DEPENDENCIES=ON',
+          '-DCMAKE_BUILD_TYPE=Release',
           '%{.install.extract}'
         ],
         '%{make}',
