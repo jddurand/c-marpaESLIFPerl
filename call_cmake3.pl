@@ -30,7 +30,16 @@ sub wanted {
         $ENV{$envvar} = $absolute;
     }
 }
-
+#
+# When symlinks are supported, installation will create symlinks for share and module
+# libraries. But then ExtUtils::Manifest will die because it uses File::Find that, by
+# default, dislike very much the presence of symlinks, c.f.
+# https://github.com/Perl-Toolchain-Gang/ExtUtils-Manifest/issues/16
+#
+$ENV{CMAKE_HELPERS_NAMELINK_SKIP} = 1;
+#
+# Alien is quite pkgconfig oriented. The following will silence a lot of things.
+#
 $ENV{PKG_CONFIG_PATH} ||= '';
 my $alienfile = 'inc/marpaESLIF/alienfile';
 my $prefix = '/usr/local';
