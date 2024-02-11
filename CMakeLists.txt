@@ -147,6 +147,7 @@ if(INSTALL_DEPENDENCIES)
       Test::Pod::Coverage
       Test::NoTabs
       Pod::Coverage::TrustPod
+      Test::Pod::Coverage::Configurable
       Log::Any
       Log::Any::Adapter
       #
@@ -160,7 +161,6 @@ if(INSTALL_DEPENDENCIES)
       File::Basename
       File::Find
       File::Spec
-      POSIX
       Env::Path
     )
     message(STATUS "Checking for ${_package}")
