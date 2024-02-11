@@ -138,6 +138,17 @@ if(INSTALL_DEPENDENCIES)
       ExtUtils::Constant
       Probe::Perl
       Try::Tiny
+      Test::CPAN::Meta
+      Test::More
+      Test::More::UTF8
+      Test::Deep
+      Test::EOL
+      Test::Kwalitee
+      Test::Pod::Coverage
+      Test::NoTabs
+      Pod::Coverage::TrustPod
+      Log::Any
+      Log::Any::Adapter
       #
       # We use ExtUtils::Constant to create constants
       #
