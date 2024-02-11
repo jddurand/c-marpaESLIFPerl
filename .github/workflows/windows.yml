@@ -1,0 +1,45 @@
+name: Windows
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+        cmake_generator: ["Visual Studio 17 2022"]
+        cmake_generator_platform: ["Win32","x64"]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: microsoft/setup-msbuild@v1.3.1
+
+    - name: Set PAUSE identity
+      run: |
+        echo user JDDPAUSE > ~/.pause
+        echo password WellWellComeOn >> ~/.pause
+
+    - name: Set up perl
+      uses: shogo82148/actions-setup-perl@v1
+        with:
+          distribution: strawberry
+
+    - name: Configure
+      run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
+
+    - name: Build
+      run: cmake --build ../build_folder --config ${{env.BUILD_TYPE}}
+
+    - name: Test
+      run: cmake --build ../build_folder --target marpaESLIFPerlTest
