@@ -133,6 +133,7 @@ if(INSTALL_DEPENDENCIES)
       File::Which
       Path::Tiny
       Alien::Build::Plugin::Build::Autoconf
+      Config::AutoConf
       #
       # We use ExtUtils::Constant to create constants
       #
