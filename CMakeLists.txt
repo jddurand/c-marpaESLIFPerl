@@ -134,6 +134,10 @@ if(INSTALL_DEPENDENCIES)
       Path::Tiny
       Alien::Build::Plugin::Build::Autoconf
       Config::AutoConf
+      ExtUtils::CBuilder
+      ExtUtils::Constant
+      Probe::Perl
+      Try::Tiny
       #
       # We use ExtUtils::Constant to create constants
       #
