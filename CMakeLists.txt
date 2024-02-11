@@ -124,44 +124,40 @@ if(INSTALL_DEPENDENCIES)
       Pod::Weaver::PluginBundle::RJBS
       Dist::Zilla::Plugin::Git::GatherDir
       Dist::Zilla::Plugin::AlienBuild
+      Dist::Zilla::Plugin::Test::Pod::Coverage::Configurable
       #
       # We have an alienfile that is a modified version of Alien::cmake3
       # Let's pull in Alien::cmake3 and its explicit dependencies
       #
       Alien::cmake3
       Alien::Build
-      File::Which
-      Path::Tiny
       Alien::Build::Plugin::Build::Autoconf
+      Archive::Tar
       Config::AutoConf
+      Env::Path
       ExtUtils::CBuilder
       ExtUtils::Constant
+      File::Basename
+      File::Find
+      File::Which
+      File::Spec
+      Log::Any
+      Log::Any::Adapter
+      Path::Tiny
+      Pod::Coverage::TrustPod
       Probe::Perl
-      Try::Tiny
       Test::CPAN::Meta
-      Test::More
-      Test::More::UTF8
       Test::Deep
       Test::EOL
       Test::Kwalitee
-      Test::Pod::Coverage
+      Test::More
+      Test::More::UTF8
       Test::NoTabs
-      Pod::Coverage::TrustPod
-      Test::Pod::Coverage::Configurable
-      Log::Any
-      Log::Any::Adapter
-      #
-      # We use ExtUtils::Constant to create constants
-      #
-      ExtUtils::Constant
+      Test::Pod::Coverage
+      Try::Tiny
       #
       # We create ourself tarballs of marpaESLIF and all its dependencies
       #
-      Archive::Tar
-      File::Basename
-      File::Find
-      File::Spec
-      Env::Path
     )
     message(STATUS "Checking for ${_package}")
     execute_process(
