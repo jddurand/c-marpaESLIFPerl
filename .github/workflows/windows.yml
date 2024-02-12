@@ -27,8 +27,8 @@ jobs:
 
     - name: Set PAUSE identity
       run: |
-        echo user JDDPAUSE > ~/.pause
-        echo password WellWellComeOn >> ~/.pause
+        echo user JDDPAUSE > %USERPROFILE%\.pause
+        echo password WellWellComeOn >> %USERPROFILE%\.pause
 
     - name: Set up perl
       uses: shogo82148/actions-setup-perl@v1
