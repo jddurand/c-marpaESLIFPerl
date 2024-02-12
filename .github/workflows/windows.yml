@@ -26,6 +26,7 @@ jobs:
     - uses: microsoft/setup-msbuild@v1.3.1
 
     - name: Set PAUSE identity
+      shell: cmd
       run: |
         echo user JDDPAUSE > %USERPROFILE%\.pause
         echo password WellWellComeOn >> %USERPROFILE%\.pause
