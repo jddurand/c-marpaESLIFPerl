@@ -379,6 +379,9 @@ check_char_bit($ac);
 check_strtold($ac);
 check_strtod($ac);
 check_strtof($ac);
+if (! check_HUGE_VAL($ac, 'C_HUGE_VAL', 'HUGE_VAL', { extra_compiler_flags => '-DC_HUGE_VAL=HUGE_VAL' })) {
+    check_HUGE_VAL($ac, 'C_HUGE_VAL_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_HUGE_VAL_REPLACEMENT' });
+}
 #
 # Write config file
 #
@@ -397,9 +400,9 @@ sub try_c {
     my $run = $options->{run};
     my $cbuilder_extra_config = $options->{cbuilder_extra_config};
     my $output_ref = $options->{output_ref};
+    my $silent = $options->{silent} // 1;
 
     my $stderr_and_stdout_txt = "stderr_and_stdout.txt";
-    my $silent = 1;
     #
     # We do not want to be polluted in any case, redirect stdout and stderr
     # to the same output using method as per perlfunc open
@@ -471,21 +474,27 @@ sub try_c {
 }
 
 sub try_link {
-    my ($csource) = @_;
+    my ($csource, $options) = @_;
 
-    return try_c($csource, { link => 1 });
+    $options //= {};
+
+    return try_c($csource, { %$options, link => 1 });
 }
 
 sub try_run {
-    my ($csource) = @_;
+    my ($csource, $options) = @_;
 
-    return try_c($csource, { link => 1, run => 1 });
+    $options //= {};
+
+    return try_c($csource, { %$options, link => 1, run => 1 });
 }
 
 sub try_output {
-    my ($csource, $output_ref) = @_;
+    my ($csource, $output_ref, $options) = @_;
 
-    return try_c($csource, { link => 1, run => 1, output_ref => $output_ref });
+    $options //= {};
+
+    return try_c($csource, { %$options, link => 1, run => 1, output_ref => $output_ref });
 }
 
 sub check_math {
@@ -971,3 +980,38 @@ BODY
     }
 }
 
+sub check_HUGE_VAL {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_HUGE_VAL_REPLACEMENT
+#  define C_HUGE_VAL (__builtin_huge_val())
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  double x = -C_HUGE_VAL;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
