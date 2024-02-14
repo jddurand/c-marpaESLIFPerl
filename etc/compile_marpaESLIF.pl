@@ -375,7 +375,7 @@ check_localtime_r($ac);
 check_write($ac);
 check_log2($ac);
 check_log2f($ac);
-check_char_bit($ac);
+check_CHAR_BIT($ac);
 check_strtold($ac);
 check_strtod($ac);
 check_strtof($ac);
@@ -391,6 +391,11 @@ if (! check_HUGE_VALL($ac, 'C_HUGE_VALL', 'HUGE_VALL', { extra_compiler_flags =>
 if (! check_INFINITY($ac, 'C_INFINITY', 'INFINITY', { extra_compiler_flags => '-DC_INFINITY=INFINITY' })) {
     if (! check_INFINITY($ac, 'C_INFINITY_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_INFINITY_REPLACEMENT' })) {
         check_INFINITY($ac, 'C_INFINITY_REPLACEMENT_USING_DIVISION', 1, { extra_compiler_flags => '-DHAVE_INFINITY_REPLACEMENT_USING_DIVISION' });
+    }
+}
+if (! check_NAN($ac, 'C_NAN', 'NAN', { extra_compiler_flags => '-DC_NAN=NAN' })) {
+    if (! check_NAN($ac, 'C_NAN_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_NAN_REPLACEMENT' })) {
+        check_NAN($ac, 'C_NAN_REPLACEMENT_USING_DIVISION', 1, { extra_compiler_flags => '-DHAVE_NAN_REPLACEMENT_USING_DIVISION' });
     }
 }
 #
@@ -864,7 +869,7 @@ BODY
     }
 }
 
-sub check_char_bit {
+sub check_CHAR_BIT {
     my ($ac) = @_;
 
     foreach my $value (qw/CHAR_BIT/) {
@@ -1124,6 +1129,46 @@ sub check_INFINITY {
 PROLOGUE
 	my $body = <<BODY;
   float x = -C_INFINITY;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_NAN {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_NAN_REPLACEMENT_USING_DIVISION
+#  define C_NAN (0.0 / 0.0)
+#else
+#  ifdef HAVE_NAN_REPLACEMENT
+#    define C_NAN (__builtin_nanf(""))
+#  endif
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  float x = C_NAN;
   exit(0);
 BODY
     my $program = $ac->lang_build_program($prologue, $body);
