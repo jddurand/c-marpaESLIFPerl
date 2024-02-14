@@ -382,6 +382,17 @@ check_strtof($ac);
 if (! check_HUGE_VAL($ac, 'C_HUGE_VAL', 'HUGE_VAL', { extra_compiler_flags => '-DC_HUGE_VAL=HUGE_VAL' })) {
     check_HUGE_VAL($ac, 'C_HUGE_VAL_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_HUGE_VAL_REPLACEMENT' });
 }
+if (! check_HUGE_VALF($ac, 'C_HUGE_VALF', 'HUGE_VALF', { extra_compiler_flags => '-DC_HUGE_VALF=HUGE_VALF' })) {
+    check_HUGE_VALF($ac, 'C_HUGE_VALF_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_HUGE_VALF_REPLACEMENT' });
+}
+if (! check_HUGE_VALL($ac, 'C_HUGE_VALL', 'HUGE_VALL', { extra_compiler_flags => '-DC_HUGE_VALL=HUGE_VALL' })) {
+    check_HUGE_VALL($ac, 'C_HUGE_VALL_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_HUGE_VALL_REPLACEMENT' });
+}
+if (! check_INFINITY($ac, 'C_INFINITY', 'INFINITY', { extra_compiler_flags => '-DC_INFINITY=INFINITY' })) {
+    if (! check_INFINITY($ac, 'C_INFINITY_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_INFINITY_REPLACEMENT' })) {
+        check_INFINITY($ac, 'C_INFINITY_REPLACEMENT_USING_DIVISION', 1, { extra_compiler_flags => '-DHAVE_INFINITY_REPLACEMENT_USING_DIVISION' });
+    }
+}
 #
 # Write config file
 #
@@ -1001,6 +1012,118 @@ sub check_HUGE_VAL {
 PROLOGUE
 	my $body = <<BODY;
   double x = -C_HUGE_VAL;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_HUGE_VALF {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_HUGE_VALF_REPLACEMENT
+#  define C_HUGE_VALF (__builtin_huge_valf())
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  float x = -C_HUGE_VALF;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_HUGE_VALL {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_HUGE_VALL_REPLACEMENT
+#  define C_HUGE_VALL (__builtin_huge_vall())
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  long double x = -C_HUGE_VALL;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_INFINITY {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_INFINITY_REPLACEMENT_USING_DIVISION
+#  define C_INFINITY (1.0 / 0.0)
+#else
+#  ifdef HAVE_INFINITY_REPLACEMENT
+#    define C_INFINITY (__builtin_inff())
+#  endif
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  float x = -C_INFINITY;
   exit(0);
 BODY
     my $program = $ac->lang_build_program($prologue, $body);
