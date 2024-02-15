@@ -409,7 +409,7 @@ check_localtime_r($ac);
 check_write($ac);
 check_log2($ac);
 check_log2f($ac);
-check_CHAR_BIT($ac);
+my $char_bit = check_CHAR_BIT($ac);
 check_strtold($ac);
 check_strtod($ac);
 check_strtof($ac);
@@ -602,6 +602,62 @@ PROLOGUE
     #
     if ($sizeof && ($what eq 'void *')) {
         $ac->define_var('SIZEOF_VOID_STAR', $sizeof);
+    }
+}
+foreach my $_sign ('', 'u') {
+    #
+    # Remember that CHAR_BIT minimum value is 8 -;
+    #
+    foreach my $_size (8,16,32,64) {
+        my $_sizeof = $_size / $char_bit;
+        #
+        # Speciying a MIN for unsigned case is meaningless (it is always zero) and not in the standard.
+        # We neverthless set it, well, to zero.
+        #
+        my $_mytypemin = "CMAKE_HELPERS_${_sign}int${_size}_min";
+        my $_MYTYPEMIN = uc($_mytypemin);
+        my $_mytypemax = "CMAKE_HELPERS_${_sign}int${_size}_max";
+        my $_MYTYPEMAX = uc($_mytypemax);
+        #
+        # Always define the CMAKE_HELPERS_XXX_MIN and CMAKE_HELPERS_XXX_MAX
+        #
+        foreach my $_c ('char', 'short', 'int', 'long', 'long long') {
+            #
+            # Without an extension, integer literal is always int,
+            # so we have to handle the case of "long" and "long long"
+            #
+            my $_extension;
+            if ($_c eq 'char') {
+                $_extension = '';
+            } elsif ($_c eq 'short') {
+                $_extension = '';
+            } elsif ($_c eq 'int') {
+                $_extension = '';
+            } elsif ($_c eq 'long') {
+                if ("x${_sign}" eq "x") {
+                    $_extension = 'L';
+                } elsif ($_sign eq 'u') {
+                    $_extension = 'UL';
+                } else {
+                    die "Unsupported size ${_size}";
+                }
+            } elsif($_c eq 'long long') {
+                #
+                # By definition, if this C supports "long long", it must support the "LL" suffix
+                #
+                if ("x${_sign}" eq "x") {
+                    $_extension = 'LL';
+                } elsif ($_sign eq 'u') {
+                    $_extension = 'ULL';
+                } else {
+                    die "Unsupported size ${_size}";
+                }
+            } else {
+                die "Unsupported c ${_c}";
+            }
+            my $_C = uc($_c);
+            $_C =~ s/ /_/g;
+        }
     }
 }
 #
@@ -1078,6 +1134,8 @@ BODY
 sub check_CHAR_BIT {
     my ($ac) = @_;
 
+    my $char_bit;
+
     foreach my $value (qw/CHAR_BIT/) {
 	$ac->msg_checking($value);
 	my $prologue = <<PROLOGUE;
@@ -1097,7 +1155,6 @@ PROLOGUE
   exit(0);
 BODY
 	my $program = $ac->lang_build_program($prologue, $body);
-        my $char_bit = undef;
         if (try_output($program, \$char_bit) && defined($char_bit)) {
 	    $ac->msg_result($char_bit);
 	    last;
@@ -1113,6 +1170,8 @@ BODY
         }
         $ac->define_var("C_CHAR_BIT", $char_bit);
     }
+
+    return $char_bit;
 }
 
 sub check_strtold {
