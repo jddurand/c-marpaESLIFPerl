@@ -488,6 +488,7 @@ if($has_Werror) {
         }
     }
 }
+my %sizeof = ();
 foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double', 'long double', 'unsigned char', 'unsigned short', 'unsigned int', 'unsigned long', 'unsigned long long', 'size_t', 'void *', 'ptrdiff_t') {
     my $prologue = <<PROLOGUE;
 #ifdef HAVE_CTYPE_H
@@ -601,6 +602,7 @@ PROLOGUE
     # Special of 'void *' : we want to see SIZEOF_VOID_STAR in our config
     #
     if ($sizeof && ($what eq 'void *')) {
+        $sizeof{$what} = $sizeof;
         $ac->define_var('SIZEOF_VOID_STAR', $sizeof);
     }
 }
@@ -657,6 +659,20 @@ foreach my $_sign ('', 'u') {
             }
             my $_C = uc($_c);
             $_C =~ s/ /_/g;
+            if (defined($sizeof{$_C})) {
+                if ($sizeof{$_C} == ${_sizeof}) {
+                    #
+                    # In C language, a decimal constant without a u/U is always signed,
+                    # but an hexadecimal constant is signed or unsigned, depending on value and integer type range
+                    #
+                    if ($_size == 8) {
+                        if ("x${_sign}" eq "x") {
+                            ${_MYTYPEMIN} = "(-127${_extension} - 1${_extension})";
+                            ${_MYTYPEMAX} = "127${_extension}";
+                        }
+                    }
+                }
+            }
         }
     }
 }
