@@ -18,7 +18,6 @@ BEGIN {
 
 use Config;
 use Config::AutoConf;
-use Config::AutoConf::INI;
 use Cwd qw/abs_path/;
 use ExtUtils::CBuilder 0.280224; # 0.280224 is to make sure we have the support of $ENV{CXX};
 use File::Basename;
@@ -293,6 +292,7 @@ if ($^O eq "netbsd" && ! $isc99) {
     $ENV{CFLAGS} .= ' -D_NETBSD_SOURCE';
 }
 
+my $has_Werror = 0;
 if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
     $ac->msg_checking("optimization flags:");
     $ac->msg_result('');
@@ -316,6 +316,7 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
         $ac->msg_checking("if flag $tmpflag works:");
         if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
             $ac->msg_result('yes');
+            $has_Werror = 1;
         } else {
             $ac->msg_result('no');
             $tmpflag = '';
@@ -356,11 +357,44 @@ print "OTHERLDFLAGS             $OTHERLDFLAGS\n";
 print "==========================================\n";
 print "\n";
 
-#
-# Re-instanciate a Config::AutoConf object using Config::AutoConf::INI
-# --------------------------------------------------------------------
-$ac = Config::AutoConf::INI->new(logfile => 'config.log');
-$ac->check();
+$ac->check_all_headers(
+    qw{
+        ctype.h
+            errno.h
+            fcntl.h
+            features.h
+            float.h
+            inttypes.h
+            io.h
+            langinfo.h
+            limits.h
+            locale.h
+            math.h
+            memory.h
+            poll.h
+            process.h
+            pwd.h
+            regex.h
+            signal.h
+            stdarg.h
+            stddef.h
+            stdint.h
+            stdio.h
+            stdlib.h
+            string.h
+            strings.h
+            sys/inttypes.h
+            sys/stat.h
+            sys/stdint.h
+            sys/time.h
+            sys/types.h
+            time.h
+            unistd.h
+            utime.h
+            wchar.h
+            wctype.h
+            windows.h
+    });
 #
 # Private extra checks that Config::AutoConf::INI cannot do
 #
@@ -396,6 +430,178 @@ if (! check_INFINITY($ac, 'C_INFINITY', 'INFINITY', { extra_compiler_flags => '-
 if (! check_NAN($ac, 'C_NAN', 'NAN', { extra_compiler_flags => '-DC_NAN=NAN' })) {
     if (! check_NAN($ac, 'C_NAN_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_NAN_REPLACEMENT' })) {
         check_NAN($ac, 'C_NAN_REPLACEMENT_USING_DIVISION', 1, { extra_compiler_flags => '-DHAVE_NAN_REPLACEMENT_USING_DIVISION' });
+    }
+}
+if (! check_isinf($ac, 'C_ISINF', 'isinf', { extra_compiler_flags => '-DC_ISINF=isinf' })) {
+    if (! check_isinf($ac, 'C_ISINF', '_isinf', { extra_compiler_flags => '-DC_ISINF=_isinf' })) {
+        if (! check_isinf($ac, 'C_ISINF', '__isinf', { extra_compiler_flags => '-DC_ISINF=__isinf' })) {
+            check_isinf($ac, 'C_ISINF_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_ISINF_REPLACEMENT' });
+        }
+    }
+}
+if (! check_isnan($ac, 'C_ISNAN', 'isnan', { extra_compiler_flags => '-DC_ISNAN=isnan' })) {
+    if (! check_isnan($ac, 'C_ISNAN', '_isnan', { extra_compiler_flags => '-DC_ISNAN=_isnan' })) {
+        if (! check_isnan($ac, 'C_ISNAN', '__isnan', { extra_compiler_flags => '-DC_ISNAN=__isnan' })) {
+            check_isnan($ac, 'C_ISNAN_REPLACEMENT', 1, { extra_compiler_flags => '-DHAVE_ISNAN_REPLACEMENT' });
+        }
+    }
+}
+check_strtoll($ac);
+check_strtoull($ac);
+check_fpclassify($ac);
+foreach (
+    ['C_FP_NAN' => 'FP_NAN'],
+    ['C__FPCLASS_SNAN' => '_FPCLASS_SNAN'],
+    ['C__FPCLASS_QNAN' => '_FPCLASS_QNAN'],
+    ['C_FP_INFINITE' => 'FP_INFINITE'],
+    ['C__FPCLASS_NINF' => '_FPCLASS_NINF'],
+    ['C__FPCLASS_PINF' => '_FPCLASS_PINF']
+    ) {
+    my ($what, $value) = @{$_};
+    check_fp_constant($ac, $what, $value, { extra_compiler_flags => "-D$what=$value" });
+}
+check_const($ac);
+check_c99_modifiers($ac);
+check_restrict($ac);
+check_builtin_expect($ac);
+check_signbit($ac);
+check_copysign($ac);
+check_copysignf($ac);
+check_copysignl($ac);
+my $is_gnu = check_compiler_is_gnu($ac);
+my $is_clang = check_compiler_is_clang($ac);
+if($has_Werror) {
+    my $tmpflag = '-Werror=attributes';
+    my $has_Werror_attributes = 0;
+    $ac->msg_checking("if flag $tmpflag works:");
+    if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
+        $ac->msg_result('yes');
+        $has_Werror_attributes = 1;
+    } else {
+        $ac->msg_result('no');
+        $tmpflag = '';
+    }
+    if ($has_Werror_attributes && ($is_gnu || $is_clang)) {
+        foreach my $attribute (qw/alias aligned alloc_size always_inline artificial cold const constructor_priority constructor deprecated destructor dllexport dllimport error externally_visible fallthrough flatten format gnu_format format_arg gnu_inline hot ifunc leaf malloc noclone noinline nonnull noreturn nothrow optimize pure sentinel sentinel_position returns_nonnull unused used visibility warning warn_unused_result weak weakref/) {
+            my $attribute_toupper = uc($attribute);
+            check_compiler_function_attribute($ac, "C_GCC_FUNC_ATTRIBUTE_${attribute_toupper}", 1, $attribute, { extra_compiler_flags => "-Werror=attributes -DTEST_GCC_FUNC_ATTRIBUTE_${attribute_toupper}=1" });
+        }
+    }
+}
+foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double', 'long double', 'unsigned char', 'unsigned short', 'unsigned int', 'unsigned long', 'unsigned long long', 'size_t', 'void *', 'ptrdiff_t') {
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_CTYPE_H
+#include <ctype.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_FEATURES_H
+#include <features.h>
+#endif
+#ifdef HAVE_FLOAT_H
+#include <float.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+#ifdef HAVE_IO_H
+#include <io.h>
+#endif
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifdef HAVE_LOCALE_H
+#include <locale.h>
+#endif
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+#ifdef HAVE_MEMORY_H
+#include <memory.h>
+#endif
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
+#ifdef HAVE_PROCESS_H
+#include <process.h>
+#endif
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
+#ifdef HAVE_REGEX_H
+#include <regex.h>
+#endif
+#ifdef HAVE_SIGNAL_H
+#include <signal.h>
+#endif
+#ifdef HAVE_STDARG_H
+#include <stdarg.h>
+#endif
+#ifdef HAVE_STDDEF_H
+#include <stddef.h>
+#endif
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_STRINGS_H
+#include <strings.h>
+#endif
+#ifdef HAVE_SYS_INTTYPES_H
+#include <sys/inttypes.h>
+#endif
+#ifdef HAVE_SYS_START_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_SYS_STDINT_H
+#include <sys/stdint.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_TIME_H
+#include <time.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_UTIME_H
+#include <utime.h>
+#endif
+#ifdef HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+#ifdef HAVE_WCTYPE_H
+#include <wctype.h>
+#endif
+#ifdef HAVE_WINDOWS_H
+#include <windows.h>
+#endif
+PROLOGUE
+    my $sizeof = $ac->check_sizeof_type($what, { prologue => $prologue } );
+    #
+    # Special of 'void *' : we want to see SIZEOF_VOID_STAR in our config
+    #
+    if ($sizeof && ($what eq 'void *')) {
+        $ac->define_var('SIZEOF_VOID_STAR', $sizeof);
     }
 }
 #
@@ -1170,6 +1376,812 @@ PROLOGUE
 	my $body = <<BODY;
   float x = C_NAN;
   exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_isinf {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_ISINF_REPLACEMENT
+#  undef C_ISINF
+#  define C_ISINF(x) (__builtin_isinf(x))
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  short x = C_ISINF(0.0);
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_isnan {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($what);
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_ISNAN_REPLACEMENT
+#  undef C_ISNAN
+#  define C_ISNAN(x) (__builtin_isnan(x))
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  short x = C_ISNAN(0.0);
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_strtoll {
+    my ($ac) = @_;
+
+    foreach my $value (qw/strtoll _strtoll __strtoll strtoi64 _strtoi64 __strtoi64/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#if defined(_MSC_VER) || defined(__BORLANDC__)
+/* Just because these compilers might not have long long, but they always have __int64. */
+/*   Note that on Windows short is always 2, int is always 4, long is always 4, __int64 is always 8 */
+#  define LONG_LONG __int64
+#else
+#  define LONG_LONG long long
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  char      *p = "123";
+  char      *endptrp;
+  LONG_LONG  ll;
+
+  ll = $value(p, &endptrp, 10);
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_STRTOLL", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_strtoull {
+    my ($ac) = @_;
+
+    foreach my $value (qw/strtoull _strtoull __strtoull strtou64 _strtou64 __strtou64/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#if defined(_MSC_VER) || defined(__BORLANDC__)
+/* Just because these compilers might not have long long, but they always have __int64. */
+/*   Note that on Windows short is always 2, int is always 4, long is always 4, __int64 is always 8 */
+#  define ULONG_LONG unsigned __int64
+#else
+#  define ULONG_LONG unsigned long long
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  char      *p = "123";
+  char      *endptrp;
+  ULONG_LONG ull;
+
+  ull = $value(p, &endptrp, 10);
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_STRTOLL", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_fpclassify {
+    my ($ac) = @_;
+
+    foreach my $value (qw/fpclassify _fpclassify __fpclassify fpclass _fpclass __fpclass/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_FLOAT_H
+#include <float.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  int x = $value(0.0);
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_FPCLASSIFY", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_fp_constant {
+    my ($ac, $what, $value, $options) = @_;
+
+    $ac->msg_checking($value); # and not $what, we know what we are doing
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+#ifdef HAVE_FLOAT_H
+#include <float.h>
+#endif
+
+#define $what $value
+
+PROLOGUE
+	my $body = <<BODY;
+  short x = $what;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program, $options)) {
+        $ac->msg_result("yes");
+        $ac->define_var($what, $value);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_const {
+    my ($ac) = @_;
+
+    foreach my $value (qw/const/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  $value int i = 1;
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_CONST", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_c99_modifiers {
+    my ($ac) = @_;
+
+    $ac->msg_checking('C99 modifiers');
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#  include <stdlib.h>
+#endif
+
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#endif
+
+#ifdef HAVE_STDDEF_H
+#  include <stddef.h>
+#endif
+
+#ifdef HAVE_SYS_STDINT_H
+#  include <sys/stdint.h>
+#endif
+
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#endif
+
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  char buf[64];
+
+  if (sprintf(buf, "%zu", (size_t)1234) != 4) {
+    exit(1);
+  }
+  else if (strcmp(buf, "1234") != 0) {
+    exit(2);
+  }
+
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program)) {
+        $ac->msg_result("yes");
+        $ac->define_var("HAVE_C99MODIFIERS", 1);
+    } else {
+        $ac->msg_result("no");
+    }
+}
+
+sub check_restrict {
+    my ($ac) = @_;
+
+    foreach my $value (qw/__restrict __restrict__ _Restrict restrict/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+static int foo (int *$value ip);
+static int bar (int ip[]);
+
+static int foo (int *$value ip) {
+  return ip[0];
+}
+
+static int bar (int ip[]) {
+  return ip[0];
+}
+
+PROLOGUE
+	my $body = <<BODY;
+  int s[1];
+  int *$value t = s;
+  t[0] = 0;
+  exit(foo (t) + bar (t));
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_RESTRICT", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_builtin_expect {
+    my ($ac) = @_;
+
+    foreach my $value (qw/__builtin_expect/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#define C_LIKELY(x)    $value(!!(x), 1)
+#define C_UNLIKELY(x)  $value(!!(x), 0)
+
+/* Copied from https://kernelnewbies.org/FAQ/LikelyUnlikely */
+int test_expect(char *s)
+{
+   int a;
+
+   /* Get the value from somewhere GCC can't optimize */
+   a = atoi(s);
+
+   if (C_UNLIKELY(a == 2)) {
+      a++;
+   } else {
+      a--;
+   }
+}
+
+PROLOGUE
+	my $body = <<BODY;
+  test_expect("1");
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C___BUILTIN_EXPECT", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_signbit {
+    my ($ac) = @_;
+
+    foreach my $value (qw/signbit _signbit __signbit/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  float f = -1.0;
+  int i = $value(f);
+
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_SIGNBIT", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_copysign {
+    my ($ac) = @_;
+
+    foreach my $value (qw/copysign _copysign __copysign/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  double neg = -1.0;
+  double pos = 1.0;
+  double res = $value(pos, neg);
+
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_COPYSIGN", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_copysignf {
+    my ($ac) = @_;
+
+    foreach my $value (qw/copysignf _copysignf __copysignf/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  float neg = -1.0;
+  float pos = 1.0;
+  float res = $value(pos, neg);
+
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_COPYSIGNF", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_copysignl {
+    my ($ac) = @_;
+
+    foreach my $value (qw/copysignl _copysignl __copysignl/) {
+	$ac->msg_checking($value);
+	my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_MATH_H
+#include <math.h>
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  long double neg = -1.0;
+  long double pos = 1.0;
+  long double res = C_COPYSIGNF(pos, neg);
+
+  exit(0);
+BODY
+	my $program = $ac->lang_build_program($prologue, $body);
+	if (try_run($program)) {
+	    $ac->msg_result("yes");
+	    $ac->define_var("C_COPYSIGNL", $value);
+	    last;
+	} else {
+	    $ac->msg_result("no");
+	}
+    }
+}
+
+sub check_compiler_is_gnu {
+    my ($ac) = @_;
+
+    $ac->msg_checking('GNU compiler');
+    my $rc;
+    my $prologue = <<PROLOGUE;
+#if !defined(__GNUC__)
+# error "__GNUC__ is not defined"
+#endif
+
+PROLOGUE
+    my $program = $ac->lang_build_program($prologue);
+    if (try_run($program)) {
+        $ac->msg_result("yes");
+        $ac->define_var("C_COMPILER_IS_GNU", 1);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_compiler_is_clang {
+    my ($ac) = @_;
+
+    $ac->msg_checking('Clang compiler');
+    my $rc;
+    my $prologue = <<PROLOGUE;
+#if !defined(__clang__)
+# error "__clang__ is not defined"
+#endif
+
+PROLOGUE
+    my $program = $ac->lang_build_program($prologue);
+    if (try_run($program)) {
+        $ac->msg_result("yes");
+        $ac->define_var("C_COMPILER_IS_CLANG", 1);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_compiler_function_attribute {
+    my ($ac, $what, $value, $attribute, $options) = @_;
+
+    $ac->msg_checking("function attribute $attribute");
+    my $rc = 0;
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ALIAS
+  int foo( void ) { return 0; }
+  int bar( void ) __attribute__((alias("foo")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ALIGNED
+  int foo( void ) __attribute__((aligned(32)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ALLOC_SIZE
+  void *foo(int a) __attribute__((alloc_size(1)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ALWAYS_INLINE
+inline __attribute__((always_inline)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ARTIFICIAL
+inline __attribute__((artificial)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_COLD
+  int foo( void ) __attribute__((cold));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_CONST
+  int foo( void ) __attribute__((const));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_CONSTRUCTOR_PRIORITY
+  int foo( void ) __attribute__((__constructor__(65535/2)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_CONSTRUCTOR
+  int foo( void ) __attribute__((constructor));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_DEPRECATED
+  int foo( void ) __attribute__((deprecated("")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_DESTRUCTOR
+  int foo( void ) __attribute__((destructor));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_DLLEXPORT
+__attribute__((dllexport)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_DLLIMPORT
+  int foo( void ) __attribute__((dllimport));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_ERROR
+  int foo( void ) __attribute__((error("")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_EXTERNALLY_VISIBLE
+  int foo( void ) __attribute__((externally_visible));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_FALLTHROUGH
+  int foo( void ) {switch (0) { case 1: __attribute__((fallthrough)); case 2: break ; }};
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_FLATTEN
+  int foo( void ) __attribute__((flatten));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_FORMAT
+  int foo(const char *p, ...) __attribute__((format(printf, 1, 2)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_GNU_FORMAT
+  int foo(const char *p, ...) __attribute__((format(gnu_printf, 1, 2)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_FORMAT_ARG
+char *foo(const char *p) __attribute__((format_arg(1)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_GNU_INLINE
+inline __attribute__((gnu_inline)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_HOT
+  int foo( void ) __attribute__((hot));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_IFUNC
+  int my_foo( void ) { return 0; }
+  static int (*resolve_foo(void))(void) { return my_foo; }
+  int foo( void ) __attribute__((ifunc("resolve_foo")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_LEAF
+__attribute__((leaf)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_MALLOC
+  void *foo( void ) __attribute__((malloc));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_NOCLONE
+  int foo( void ) __attribute__((noclone1));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_NOINLINE
+__attribute__((noinline1)) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_NONNULL
+  int foo(char *p) __attribute__((nonnull(1)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_NORETURN
+  void foo( void ) __attribute__((noreturn));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_NOTHROW
+  int foo( void ) __attribute__((nothrow1));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_OPTIMIZE
+__attribute__((optimize(3))) int foo( void ) { return 0; }
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_PURE
+  int foo( void ) __attribute__((pure));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_SENTINEL
+  int foo(void *p, ...) __attribute__((sentinel));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_SENTINEL_POSITION
+  int foo(void *p, ...) __attribute__((sentinel_position(1)));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_RETURNS_NONNULL
+  void *foo( void ) __attribute__((returns_nonnull));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_UNUSED
+  int foo( void ) __attribute__((unused));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_USED
+  int foo( void ) __attribute__((used));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_VISIBILITY
+  int foo_def( void ) __attribute__((visibility("default")));
+  int foo_hid( void ) __attribute__((visibility("hidden")));
+  int foo_int( void ) __attribute__((visibility("internal")));
+  int foo_pro( void ) __attribute__((visibility("protected")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_WARNING
+  int foo( void ) __attribute__((warning1("")));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_WARN_UNUSED_RESULT
+  int foo( void ) __attribute__((warn_unused_result));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_WEAK
+  int foo( void ) __attribute__((weak));
+  int test_attribute() { exit(0); }
+#endif
+
+#ifdef TEST_GCC_FUNC_ATTRIBUTE_WEAKREF
+  static int foo( void ) { return 0; }
+  static int bar( void ) __attribute__((weakref("foo")));
+  int test_attribute() { exit(0); }
+#endif
+
+PROLOGUE
+	my $body = <<BODY;
+  test_attribute();
+  exit(1);
 BODY
     my $program = $ac->lang_build_program($prologue, $body);
     if (try_run($program, $options)) {
