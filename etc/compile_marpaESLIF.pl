@@ -357,6 +357,7 @@ print "OTHERLDFLAGS             $OTHERLDFLAGS\n";
 print "==========================================\n";
 print "\n";
 
+my %HAVE_HEADERS = ();
 $ac->check_all_headers(
     qw{
         ctype.h
@@ -394,7 +395,7 @@ $ac->check_all_headers(
             wchar.h
             wctype.h
             windows.h
-    });
+    }, { action_on_header_true => sub { my $header = shift; $HAVE_HEADERS{$header} = 1 } } );
 #
 # Private extra checks that Config::AutoConf::INI cannot do
 #
@@ -737,7 +738,6 @@ foreach my $_sign ('', 'u') {
                 my $_type = "${_underscore}${_sign}int${_variation}${_size}_t";
                 my $_TYPE = uc(${_type});
                 my $sizeof = $ac->check_sizeof_type($_type, { action_on_true => sub { $_HAVES{"HAVE_${_TYPE}"} = 1 } });
-                my $sizeof;
                 if ($_HAVES{"HAVE_${_TYPE}"}) {
                     $_HAVES{"HAVE_${_MYTYPE}"} = 1;
                     $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = $sizeof;
@@ -807,6 +807,10 @@ foreach my $_sign ('', 'u') {
         }
     }
 }
+if (! $HAVE_HEADERS{"stdint.h"} && ! -e "stdint.h") {
+    print "Generating stdint.h\n";
+    configure_file("stdint.h.in", "stdint.h");
+}
 #
 # Write config file
 #
@@ -851,20 +855,24 @@ sub try_c {
     #
     # Default is compile at least
     #
+    my $object_file;
+    my $exe_file;
     try {
         my $cbuilder = ExtUtils::CBuilder->new(config => $cbuilder_extra_config, quiet => 1);
-        my $obj = basename($cbuilder->object_file($source));
+        $object_file = basename($cbuilder->object_file($source));
         $cbuilder->compile(
             source               => $source,
-            object_file          => $obj,
+            object_file          => $object_file,
             extra_compiler_flags => $extra_compiler_flags
             );
 	#
 	# Optionally link
 	#
         if ($link) {
+            $exe_file = basename($cbuilder->exe_file($object_file));
             my $exe = $cbuilder->link_executable(
-                objects              => [ $obj ],
+                objects              => [ $object_file ],
+                exe_file             => $exe_file
                 );
 	    #
 	    # Optionnally run
@@ -888,6 +896,14 @@ sub try_c {
         } else {
 	    $rc = 1;
 	}
+    }
+    finally {
+        if ($object_file) {
+            unlink($object_file);
+        }
+        if ($exe_file) {
+            unlink($exe_file);
+        }
     };
     unlink $fh->filename;
 
