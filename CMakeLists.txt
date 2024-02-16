@@ -132,13 +132,14 @@ if(INSTALL_DEPENDENCIES)
       Alien::cmake3
       Alien::Build
       Alien::Build::Plugin::Build::Autoconf
-      Archive::Tar
+      # Archive::Tar CORE
       Config::AutoConf
       Env::Path
       ExtUtils::CBuilder
       ExtUtils::Constant
-      File::Basename
+      # File::Basename # CORE
       File::Find
+      File::Path
       File::Which
       File::Spec
       Log::Any
@@ -177,7 +178,7 @@ set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 file(GLOB deps LIST_DIRECTORIES true "${CMAKE_HELPERS_FETCHCONTENT_BASE_DIR}/*-src")
 set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/create_tar_gz.pl)
 set(deps-tgz)
-set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl/tarballs)
+set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/inc/tarballs)
 execute_process(COMMAND ${CMAKE_COMMAND} -E rm -rf ${tarballs-destdir})
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${tarballs-destdir})
 foreach(dep IN LISTS deps)

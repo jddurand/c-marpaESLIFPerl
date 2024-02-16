@@ -2,6 +2,17 @@
 use strict;
 use diagnostics;
 
+#
+# This script is supposed to be run at the TOP of the distribution directory, i.e.:
+#
+# perl etc/compile_marpaESLIF.pl
+#
+# Tarballs are expected to in inc/tarballs directory. They will be extracted in inc/extract
+# directory that is first purged.
+#
+# Eventual extra includes are generated in inc/include directory.
+#
+
 my $have_cppguess;
 BEGIN {
     use File::Spec;                     # Formally it is not necessary I believe to do it here
@@ -16,17 +27,23 @@ BEGIN {
     $have_cppguess = eval 'use ExtUtils::CppGuess 0.26; 1;';
 }
 
+use Archive::Tar;
 use Config;
 use Config::AutoConf;
 use Cwd qw/abs_path/;
 use ExtUtils::CBuilder 0.280224; # 0.280224 is to make sure we have the support of $ENV{CXX};
 use File::Basename;
+use File::Path qw/make_path remove_tree/;
 use File::Spec;
 use File::Which;
 use File::Temp;
 use Perl::OSType qw/is_os_type/;
 use POSIX qw/EXIT_SUCCESS WIFEXITED WEXITSTATUS/;
 use Try::Tiny;
+
+our $CONFIG_H = "config_autoconf.h"; # The file that we generate
+our $EXTRACT_DIR = File::Spec->catdir('inc', 'extract');
+our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -600,6 +617,9 @@ foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double'
 PROLOGUE
     my $WHAT = uc($what);
     $WHAT =~ s/ /_/g;
+    #
+    # Note that $c caches also the result
+    #
     $sizeof{$WHAT} = $ac->check_sizeof_type($what, { prologue => $prologue });
     #
     # Special of 'void *' : we want to see SIZEOF_VOID_STAR in our config
@@ -807,14 +827,27 @@ foreach my $_sign ('', 'u') {
         }
     }
 }
+
+#
+# Remove inc/extract directory
+#
+print "... Suppress directory $EXTRACT_DIR\n";
+remove_tree($EXTRACT_DIR, { safe => 1 });
+print "... Create directory  $EXTRACT_DIR\n";
+make_path($EXTRACT_DIR);
+#
+# Extract and process tarballs in an order that we know in advance
+#
+process_genericStack();
+
+configure_file($ac, "stdint.h.in", "stdint.h");
 if (! $HAVE_HEADERS{"stdint.h"} && ! -e "stdint.h") {
     print "Generating stdint.h\n";
-    configure_file("stdint.h.in", "stdint.h");
 }
 #
 # Write config file
 #
-$ac->write_config_h();
+$ac->write_config_h($CONFIG_H);
 
 exit(EXIT_SUCCESS);
 
@@ -2416,4 +2449,63 @@ BODY
     }
 
     return $rc;
+}
+
+sub configure_file {
+    my ($ac, $in, $out) = @_;
+
+    #
+    # We want to look to:
+    # #cmakedefine XXX
+    # #cmakedefine XXX @YYY@
+    #
+
+    my $in_define = $in;
+    $in_define =~ s/[^a-zA-Z0-9_]/_/g;
+    my $IN_DEFINE = uc($in_define);
+    #
+    # We always wrap the input with:
+    #
+    # #ifndef AUTOCONF_${IN_DEFINE}
+    # #define AUTOCONF_${IN_DEFINE}
+    # ...
+    # #endif
+    open(my $fhout, '>', $out) || die "Cannot open for writing $out, $!";
+    print $fhout "#ifndef AUTOCONF_${IN_DEFINE}\n";
+    print $fhout "#define AUTOCONF_${IN_DEFINE}\n";
+
+    #
+    # Do input replacement and write it
+    #
+    open(my $fhin, '<', $in) || die "Cannot open for reading $in, $!";
+    while (defined(my $line = <$fhin>)) {
+        my $define = undef;
+        my $value = undef;
+        if ($line =~ /^\s*#\s*cmakedefine\s+([a-zA-Z0-9_]+)\s+\@([a-zA-Z0-9_]+)\@/) {
+            ($define, $value) = ($1, $2);
+        } elsif ($line =~ /^\s*#\s*cmakedefine\s+([a-zA-Z0-9_]+)/) {
+            $define = $1;
+        }
+        if (! defined($define)) {
+            print $fhout "$line\n";
+            next;
+        }
+        #
+        # The #cmakedefine XXX @YYY@ case: We assume that YYY must match XXX - we do not support another case
+        #
+        if (defined($value) && $define ne $value) {
+            die "Unsupported case #cmakedefine $define \@$value\@\n";
+        }
+        #
+        # The #cmakedefine case : it is already handle with the include of $CONFIG_H
+        #
+        next;
+    }
+    close($fhin) || warn "Cannot close $in, $!";
+    
+    print $fhout "#endif /* AUTOCONF_${IN_DEFINE} */\n";
+    close($fhout) || warn "Cannot close $out, $!";
+}
+
+sub process_genericStack {
 }
