@@ -597,15 +597,20 @@ foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double'
 #include <windows.h>
 #endif
 PROLOGUE
-    my $sizeof = $ac->check_sizeof_type($what, { prologue => $prologue } );
+    my $WHAT = uc($what);
+    $WHAT =~ s/ /_/g;
+    $sizeof{$WHAT} = $ac->check_sizeof_type($what, { prologue => $prologue });
     #
     # Special of 'void *' : we want to see SIZEOF_VOID_STAR in our config
     #
-    if ($sizeof && ($what eq 'void *')) {
-        $sizeof{$what} = $sizeof;
-        $ac->define_var('SIZEOF_VOID_STAR', $sizeof);
+    if ($sizeof{$WHAT}) {
+        $ac->define_var("HAVE_SIZEOF_${WHAT}", 1);
+    }
+    if ($what eq 'void *') {
+        $ac->define_var('SIZEOF_VOID_STAR', $sizeof{$WHAT});
     }
 }
+my %_MYTYPEMINMAX = ();
 foreach my $_sign ('', 'u') {
     #
     # Remember that CHAR_BIT minimum value is 8 -;
@@ -667,12 +672,138 @@ foreach my $_sign ('', 'u') {
                     #
                     if ($_size == 8) {
                         if ("x${_sign}" eq "x") {
-                            ${_MYTYPEMIN} = "(-127${_extension} - 1${_extension})";
-                            ${_MYTYPEMAX} = "127${_extension}";
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "(-127${_extension} - 1${_extension})";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "127${_extension}";
+                        } elsif (${_sign} eq "u") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "0x00${_extension}";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "0xFF${_extension}";
+                        } else {
+                            die "Unsupported size ${_size}";
+                        }
+                    } elsif ($_size == 16) {
+                        if ("x${_sign}" eq "x") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "(-32767${_extension} - 1${_extension})";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "32767${_extension}";
+                        } elsif (${_sign} eq "u") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "0x0000${_extension}";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "0xFFFF${_extension}";
+                        } else {
+                            die "Unsupported size ${_size}";
+                        }
+                    } elsif ($_size == 32) {
+                        if ("x${_sign}" eq "x") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "(-2147483647${_extension} - 1${_extension})";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "2147483647${_extension}";
+                        } elsif (${_sign} eq "u") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "0x00000000${_extension}";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "0xFFFFFFFF${_extension}";
+                        } else {
+                            die "Unsupported size ${_size}";
+                        }
+                    } elsif ($_size == 64) {
+                        if ("x${_sign}" eq "x") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "(-9223372036854775807${_extension} - 1${_extension})";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "9223372036854775807${_extension}";
+                        } elsif (${_sign} eq "u") {
+                            $_MYTYPEMINMAX{"${_MYTYPEMIN}"} = "0x0000000000000000${_extension}";
+                            $_MYTYPEMINMAX{"${_MYTYPEMAX}"} = "0xFFFFFFFFFFFFFFFF${_extension}";
+                        } else {
+                            die "Unsupported size ${_size}";
+                        }
+                    } else {
+                        die "Unsupported size ${_size}";
+                    }
+                }
+            }
+        }
+        #
+        # We handle the _least and _fast variations
+        #
+        my %_HAVES = ();
+        my %_MYTYPES = ();
+        my %_MYTYPEDEFS = ();
+        my %_SIZEOFS = ();
+        foreach my $_variation ('', '_least', '_fast') {
+            my $_ctype =  "${_sign}int${_variation}${_size}_t";
+            my $_CTYPE = uc($_ctype);
+
+            my $_mytype = "CMAKE_HELPERS_${_sign}int${_variation}${_size}";
+            my $_MYTYPE = uc($_mytype);
+
+            my $_MYTYPEDEF = "${_MYTYPE}_TYPEDEF";
+
+            my $_found_type = 0;
+            foreach my $_underscore ('', '_', '__') {
+                my $_type = "${_underscore}${_sign}int${_variation}${_size}_t";
+                my $_TYPE = uc(${_type});
+                my $sizeof = $ac->check_sizeof_type($_type, { action_on_true => sub { $_HAVES{"HAVE_${_TYPE}"} = 1 } });
+                my $sizeof;
+                if ($_HAVES{"HAVE_${_TYPE}"}) {
+                    $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+                    $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = $sizeof;
+                    $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_type};
+                    if (${_type} eq ${_ctype}) {
+                        $_HAVES{"HAVE_${_CTYPE}"} = 1;
+                    } else {
+                        $_HAVES{"HAVE_${_CTYPE}"} = 0;
+                    }
+                    last;
+                }
+            }
+
+            if (! $_HAVES{"HAVE_${_MYTYPE}"}) {
+                #
+                # Try with C types
+                #
+                my $_found_type = 0;
+                foreach ('char', 'short', 'int', 'long', 'long long') {
+                    my $_c = $_; # Because a foreach my $_c would have made $_c a readonly variable
+                    if ($_sign eq "u") {
+                        $_c = "unsigned ${_c}";
+                    }
+                    my $_C = uc(${_c});
+                    $_C =~ s/ /_/g;
+                    $_HAVES{"HAVE_SIZEOF_${_C}"} = (exists($sizeof{$_C}) && $sizeof{$_C}) ? 1 : 0;
+                    if ($_HAVES{"HAVE_SIZEOF_${_C}"}) {
+                        if ("x${_variation}" eq "x") {
+                            $_SIZEOFS{"SIZEOF_${_C}"} = $sizeof{$_C};
+                            if ($_SIZEOFS{"SIZEOF_${_C}"} == ${_sizeof}) {
+                                $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+                                $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = ${_sizeof};
+                                $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_c};
+                                last;
+                            }
+                        } elsif ($_variation eq "_least") {
+                            $_SIZEOFS{"SIZEOF_${_C}"} = $sizeof{$_C};
+                            if ($_SIZEOFS{"SIZEOF_${_C}"} >= ${_sizeof}) {
+                                $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+                                $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = ${_sizeof};
+                                $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_c};
+                                last;
+                            }
+                        } elsif ($_variation eq "_fast") {
+                            #
+                            # We give the same result as _least
+                            #
+                            $_SIZEOFS{"SIZEOF_${_C}"} = $sizeof{$_C};
+                            if ($_SIZEOFS{"SIZEOF_${_C}"} >= ${_sizeof}) {
+                                $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+                                $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = ${_sizeof};
+                                $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_c};
+                                last;
+                            }
+                        } else {
+                            die "Unsupported variation ${_variation}";
                         }
                     }
                 }
             }
+            $ac->define_var("HAVE_${_MYTYPE}", $_HAVES{"HAVE_${_MYTYPE}"});
+            $ac->define_var("SIZEOF_${_MYTYPE}", $_SIZEOFS{"SIZEOF_${_MYTYPE}"});
+            $ac->define_var("HAVE_${_CTYPE}", $_HAVES{"HAVE_${_CTYPE}"});
+            $ac->define_var("${_MYTYPEDEF}", $_MYTYPEDEFS{"${_MYTYPEDEF}"});
+            $ac->define_var("${_MYTYPEMIN}", $_MYTYPEMINMAX{"${_MYTYPEMIN}"});
+            $ac->define_var("${_MYTYPEMAX}", $_MYTYPEMINMAX{"${_MYTYPEMAX}"});
         }
     }
 }
