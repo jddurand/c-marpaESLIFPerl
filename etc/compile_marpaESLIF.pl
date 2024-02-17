@@ -907,11 +907,22 @@ make_path($EXTRACT_DIR);
 #
 $ac->write_config_h($CONFIG_H);
 #
+# Generate extra headers eventually
+#
+if (! $HAVE_HEADERS{"stdint.h"}) {
+    print "Generating stdint.h\n";
+    configure_file($ac, File::Spec->catfile('etc', 'stdint.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'stdint.h'));
+}
+if (! $HAVE_HEADERS{"inttypes.h"}) {
+    print "Generating inttypes.h\n";
+    configure_file($ac, File::Spec->catfile('etc', 'inttypes.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'inttypes.h'));
+}
+
+#
 # Extract and process tarballs in an order that we know in advance
 #
 process_genericStack();
 
-configure_file($ac, File::Spec->catfile('etc', 'stdint.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'stdint.h'));
 if (! $HAVE_HEADERS{"stdint.h"} && ! -e "stdint.h") {
     print "Generating stdint.h\n";
 }
