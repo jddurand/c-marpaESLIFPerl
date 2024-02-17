@@ -7,7 +7,7 @@ use diagnostics;
 #
 # perl etc/compile_marpaESLIF.pl
 #
-# Tarballs are expected to in tarballs directory. They will be extracted in extract
+# Tarballs are expected to in etc/tarballs directory. They will be extracted in extract
 # directory that is first purged.
 #
 # Eventual extra includes are generated in inc/include directory.
@@ -47,8 +47,8 @@ use Try::Tiny;
 our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
 our $CONFIG_H = File::Spec->catfile($EXTRA_INCLUDE_DIR, 'marpaESLIFPerl_autoconf.h'); # The file that we generate
 our $EXTRACT_DIR = 'extract';
-our $TARBALLS_DIR = 'tarballs';
-our $OBJ_DIR = 'tarballs';
+our $TARBALLS_DIR = File::Spec->catdir('etc', 'tarballs');
+our $OBJ_DIR = 'obj';
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -68,7 +68,7 @@ autoflush STDERR 1;
 my %cbuilder_config = ExtUtils::CBuilder->new()->get_config;
 $ENV{CC} = $cbuilder_config{cc} // 'cc';
 $ENV{CFLAGS} //= '';
-$ENV{CFLAGS} .= ' -DNDEBUG';
+$ENV{CFLAGS} .= ' -DNDEBUG -DNTRACE';
 $ENV{CXX} = $cbuilder_config{cxx} // $ENV{CC};
 $ENV{CXXFLAGS} = $cbuilder_config{cxxflags} // $cbuilder_config{ccflags} // '';
 $ENV{LD} = $cbuilder_config{ld} // $ENV{CC};
@@ -622,22 +622,14 @@ foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double'
 #include <windows.h>
 #endif
 PROLOGUE
-    my $WHAT = uc($what);
+    my $WHAT = ($what eq 'void *') ? uc("void star") : uc($what);
     $WHAT =~ s/ /_/g;
     #
     # Note that $c caches also the result
     #
     $sizeof{$WHAT} = $ac->check_sizeof_type($what, { prologue => $prologue });
-    #
-    # Special of 'void *' : we want to see SIZEOF_VOID_STAR in our config
-    #
     if ($sizeof{$WHAT}) {
         $ac->define_var("HAVE_SIZEOF_${WHAT}", 1);
-    }
-    if ($what eq 'void *') {
-        $sizeof{'VOID_STAR'} = $sizeof{$WHAT};
-        $WHAT = 'VOID_STAR';
-        $ac->define_var('SIZEOF_VOID_STAR', $sizeof{$WHAT});
     }
 }
 my %_MYTYPEMINMAX = ();
@@ -921,6 +913,9 @@ make_path($OBJ_DIR);
 #
 print "Generating $CONFIG_H\n";
 $ac->write_config_h($CONFIG_H);
+$ac->msg_notice("Append -I$EXTRA_INCLUDE_DIR to compile flags");
+$ENV{CFLAGS} .= " -I$EXTRA_INCLUDE_DIR";
+$ENV{CXXFLAGS} .= " -I$EXTRA_INCLUDE_DIR";
 #
 # Generate extra headers eventually
 #
@@ -930,6 +925,7 @@ if (! $HAVE_HEADERS{"stdint.h"}) {
 if (! $HAVE_HEADERS{"inttypes.h"}) {
     configure_file($ac, File::Spec->catfile('etc', 'inttypes.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'inttypes.h'));
 }
+
 #
 # General flags that we always set
 #
@@ -2660,8 +2656,8 @@ sub process_genericStack {
     #
     my $include = File::Spec->catdir($outdir, 'include');
     $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -D$include";
-    $ENV{CXXFLAGS} .= " -D$include";
+    $ENV{CFLAGS} .= " -I$include";
+    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericHash {
@@ -2691,8 +2687,8 @@ sub process_genericHash {
     #
     my $include = File::Spec->catdir($outdir, 'include');
     $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -D$include";
-    $ENV{CXXFLAGS} .= " -D$include";
+    $ENV{CFLAGS} .= " -I$include";
+    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericSparseArray {
@@ -2722,8 +2718,8 @@ sub process_genericSparseArray {
     #
     my $include = File::Spec->catdir($outdir, 'include');
     $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -D$include";
-    $ENV{CXXFLAGS} .= " -D$include";
+    $ENV{CFLAGS} .= " -I$include";
+    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericLogger {
@@ -2752,10 +2748,10 @@ sub process_genericLogger {
     #
     my $include = File::Spec->catdir($outdir, 'include');
     $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -D$include";
-    $ENV{CXXFLAGS} .= " -D$include";
+    $ENV{CFLAGS} .= " -I$include";
+    $ENV{CXXFLAGS} .= " -I$include";
     #
-    # Compile objects
+    # Configure
     #
     configure_file
         (
@@ -2764,12 +2760,16 @@ sub process_genericLogger {
          File::Spec->catfile($outdir, 'include', 'genericLogger', 'internal', 'config.h')
         );
 
+    #
+    # Compile
+    #
     my $b = ExtUtils::CBuilder->new();
+    my $PROJECT = uc($project);
     $b->compile
         (
          source => File::Spec->catfile($outdir, 'src', 'genericLogger.c'),
          object_file => File::Spec->catfile($OBJ_DIR, 'genericLogger.o'),
-         include_dirs => [ File::Spec->catfile($outdir, 'include', 'genericLogger', 'internal') ]
+         extra_compiler_flags => [ "-D${PROJECT}_NTRACE" ]
         );
 }
 
@@ -2787,7 +2787,7 @@ sub get_project_and_version {
                 my $PROJECT = uc($project);
                 print "... Project $project, version $version\n";
 
-                foreach my $flag ("${PROJECT}_VERSION_MAJOR=$major", "${PROJECT}_VERSION_MINOR=$minor", "${PROJECT}_VERSION_PATCH=$patch", "${PROJECT}_VERSION=\"$version\"") {
+                foreach my $flag ("${PROJECT}_VERSION_MAJOR=$major", "${PROJECT}_VERSION_MINOR=$minor", "${PROJECT}_VERSION_PATCH=$patch", "${PROJECT}_VERSION=\\\"$version\\\"") {
                     $ac->msg_notice("Append $flag to compile flags");
                     $ENV{CFLAGS} .= " -D$flag";
                     $ENV{CXXFLAGS} .= " -D$flag";
@@ -2796,7 +2796,7 @@ sub get_project_and_version {
                 last;
             }
         }
-        close($fh) || "Cannot close $CMakeLists, $!";
+        close($fh) || warn "Cannot close $CMakeLists, $!";
     }
 
     return ($project, $version, $major, $minor, $patch);
@@ -2805,7 +2805,8 @@ sub get_project_and_version {
 sub generate_export_h {
     my ($ac, $dir, $project) = @_;
 
-    my $export = File::Spec->catfile($dir, 'include', 'export.h');
+    my $export = File::Spec->catfile($dir, 'include', $project, 'export.h');
+    make_path(dirname($export));
     print "Generating $export\n";
     my $PROJECT = uc($project);
     open(my $fh, '>', $export) || die "Cannot open $export, $!";

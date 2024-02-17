@@ -177,9 +177,9 @@ set(DIST_ZILLA_APP_RUN "\"Dist::Zilla::App->run\"")
 # Make tarballs of dependencies
 #
 file(GLOB deps LIST_DIRECTORIES true "${CMAKE_HELPERS_FETCHCONTENT_BASE_DIR}/*-src")
-set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/create_tar_gz.pl)
+set(create_tar_gz-pl ${CMAKE_CURRENT_SOURCE_DIR}/etc/create_tar_gz.pl)
 set(deps-tgz)
-set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/tarballs)
+set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/etc/tarballs)
 execute_process(COMMAND ${CMAKE_COMMAND} -E rm -rf ${tarballs-destdir})
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${tarballs-destdir})
 foreach(dep IN LISTS deps)
