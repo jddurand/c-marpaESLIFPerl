@@ -7,10 +7,12 @@ use diagnostics;
 #
 # perl etc/compile_marpaESLIF.pl
 #
-# Tarballs are expected to in inc/tarballs directory. They will be extracted in inc/extract
+# Tarballs are expected to in tarballs directory. They will be extracted in extract
 # directory that is first purged.
 #
 # Eventual extra includes are generated in inc/include directory.
+#
+# Object files are in obj directory
 #
 
 my $have_cppguess;
@@ -32,6 +34,7 @@ use Config;
 use Config::AutoConf;
 use Cwd qw/abs_path/;
 use ExtUtils::CBuilder 0.280224; # 0.280224 is to make sure we have the support of $ENV{CXX};
+use File::chdir;
 use File::Basename;
 use File::Path qw/make_path remove_tree/;
 use File::Spec;
@@ -43,7 +46,9 @@ use Try::Tiny;
 
 our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
 our $CONFIG_H = File::Spec->catfile($EXTRA_INCLUDE_DIR, 'marpaESLIFPerl_autoconf.h'); # The file that we generate
-our $EXTRACT_DIR = File::Spec->catdir('inc', 'extract');
+our $EXTRACT_DIR = 'extract';
+our $TARBALLS_DIR = 'tarballs';
+our $OBJ_DIR = 'tarballs';
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -506,6 +511,8 @@ if($has_Werror) {
         }
     }
 }
+check_gnu_source($ac);
+
 my %sizeof = ();
 foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double', 'long double', 'unsigned char', 'unsigned short', 'unsigned int', 'unsigned long', 'unsigned long long', 'size_t', 'void *', 'ptrdiff_t') {
     my $prologue = <<PROLOGUE;
@@ -889,43 +896,65 @@ foreach my $_sign ('', 'u') {
     }
 }
 #
-# Remove inc/include directory
+# Remove extra include directory
 #
-print "... Suppress directory $EXTRA_INCLUDE_DIR\n";
+print "Removing directory $EXTRA_INCLUDE_DIR\n";
 remove_tree($EXTRA_INCLUDE_DIR, { safe => 1 });
-print "... Create directory $EXTRA_INCLUDE_DIR\n";
+print "Creating directory $EXTRA_INCLUDE_DIR\n";
 make_path($EXTRA_INCLUDE_DIR);
 #
-# Remove inc/extract directory
+# Remove extract directory
 #
-print "... Suppress directory $EXTRACT_DIR\n";
+print "Removing directory $EXTRACT_DIR\n";
 remove_tree($EXTRACT_DIR, { safe => 1 });
-print "... Create directory $EXTRACT_DIR\n";
+print "Creating directory $EXTRACT_DIR\n";
 make_path($EXTRACT_DIR);
+#
+# Remove obj directory
+#
+print "Removing directory $OBJ_DIR\n";
+remove_tree($OBJ_DIR, { safe => 1 });
+print "Creating directory $OBJ_DIR\n";
+make_path($OBJ_DIR);
 #
 # Write config file
 #
+print "Generating $CONFIG_H\n";
 $ac->write_config_h($CONFIG_H);
 #
 # Generate extra headers eventually
 #
 if (! $HAVE_HEADERS{"stdint.h"}) {
-    print "Generating stdint.h\n";
     configure_file($ac, File::Spec->catfile('etc', 'stdint.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'stdint.h'));
 }
 if (! $HAVE_HEADERS{"inttypes.h"}) {
-    print "Generating inttypes.h\n";
     configure_file($ac, File::Spec->catfile('etc', 'inttypes.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'inttypes.h'));
 }
-
+#
+# General flags that we always set
+#
+foreach my $flag (qw/_REENTRANT _THREAD_SAFE/) {
+    $ac->msg_notice("Append $flag to compile flags");
+    $ENV{CFLAGS} .= " -D$flag";
+    $ENV{CXXFLAGS} .= " -D$flag";
+}
+#
+# Specific flags for cl
+#
+if ($ENV{CC} =~ /\bcl\b/) {
+    foreach my $flag (qw/WIN32_LEAN_AND_MEAN CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE/) {
+        $ac->msg_notice("Append $flag to compile flags");
+        $ENV{CFLAGS} .= " -D$flag";
+        $ENV{CXXFLAGS} .= " -D$flag";
+    }
+}
 #
 # Extract and process tarballs in an order that we know in advance
 #
-process_genericStack();
-
-if (! $HAVE_HEADERS{"stdint.h"} && ! -e "stdint.h") {
-    print "Generating stdint.h\n";
-}
+process_genericStack($ac);
+process_genericHash($ac);
+process_genericSparseArray($ac);
+process_genericLogger($ac);
 
 exit(EXIT_SUCCESS);
 
@@ -1061,6 +1090,7 @@ sub check_math {
 	$ac->msg_result("$lm");
 	$ac->search_libs('log', $lm, { action_on_true => $ac->define_var("HAVE_LOG", 1) });
 	$ac->search_libs('exp', $lm, { action_on_true => $ac->define_var("HAVE_EXP", 1) });
+        $ac->msg_notice("Append -l$lm to LDFLAGS");
 	$ENV{LDFLAGS} .= " -l$lm";
     } else {
 	$ac->msg_result("not needed");
@@ -2236,6 +2266,31 @@ BODY
     }
 }
 
+sub check_gnu_source {
+    my ($ac) = @_;
+
+    $ac->msg_checking('__GNU_LIBRARY__');
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_FEATURES_H
+#include <features.h>
+#endif
+
+PROLOGUE
+    my $body = <<BODY;
+  int gnu_library = __GNU_LIBRARY__;
+  exit(gnu_library ? 0 : 1);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program)) {
+        $ac->msg_result("yes");
+        $ac->msg_notice("Append _GNU_SOURCE to compile flags");
+        $ENV{CFLAGS} .= ' -D_GNU_SOURCE';
+        $ENV{CXXFLAGS} .= ' -D_GNU_SOURCE';
+    } else {
+        $ac->msg_result("no");
+    }
+}
+
 sub check_compiler_is_gnu {
     my ($ac) = @_;
 
@@ -2532,7 +2587,7 @@ BODY
 sub configure_file {
     my ($ac, $in, $out) = @_;
 
-    print "Doing transformation $in -> $out\n";
+    print "Generating $out\n";
 
     #
     # We want to look to:
@@ -2544,15 +2599,11 @@ sub configure_file {
     $in_define =~ s/[^a-zA-Z0-9_]/_/g;
     my $IN_DEFINE = uc($in_define);
     #
-    # We always wrap the input with:
+    # We always prepend with:
     #
-    # #ifndef AUTOCONF_${IN_DEFINE}
-    # #define AUTOCONF_${IN_DEFINE}
-    # ...
-    # #endif
+    # #include $CONFIG_H
+    #
     open(my $fhout, '>', $out) || die "Cannot open for writing $out, $!";
-    print $fhout "#ifndef AUTOCONF_${IN_DEFINE}\n";
-    print $fhout "#define AUTOCONF_${IN_DEFINE}\n";
     print $fhout "#include <" . basename($CONFIG_H) . ">\n";
     #
     # Do input replacement and write it
@@ -2579,10 +2630,194 @@ sub configure_file {
         print $fhout "$line";
     }
     close($fhin) || warn "Cannot close $in, $!";
-    
-    print $fhout "#endif /* AUTOCONF_${IN_DEFINE} */\n";
     close($fhout) || warn "Cannot close $out, $!";
 }
 
 sub process_genericStack {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'genericstack-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'genericStack');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    if (0) {
+        #
+        # Not needed
+        #
+        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+        if ($project) {
+            generate_export_h($ac, $outdir, $project);
+        }
+    }
+    #
+    # Add include directory to compile flags
+    #
+    my $include = File::Spec->catdir($outdir, 'include');
+    $ac->msg_notice("Append -I$include to compile flags");
+    $ENV{CFLAGS} .= " -D$include";
+    $ENV{CXXFLAGS} .= " -D$include";
+}
+
+sub process_genericHash {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'generichash-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'genericHash');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    if (0) {
+        #
+        # Not needed
+        #
+        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+        if ($project) {
+            generate_export_h($ac, $outdir, $project);
+        }
+    }
+    #
+    # Add include directory to compile flags
+    #
+    my $include = File::Spec->catdir($outdir, 'include');
+    $ac->msg_notice("Append -I$include to compile flags");
+    $ENV{CFLAGS} .= " -D$include";
+    $ENV{CXXFLAGS} .= " -D$include";
+}
+
+sub process_genericSparseArray {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'genericsparsearray-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'genericSparseArray');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    if (0) {
+        #
+        # Not needed
+        #
+        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+        if ($project) {
+            generate_export_h($ac, $outdir, $project);
+        }
+    }
+    #
+    # Add include directory to compile flags
+    #
+    my $include = File::Spec->catdir($outdir, 'include');
+    $ac->msg_notice("Append -I$include to compile flags");
+    $ENV{CFLAGS} .= " -D$include";
+    $ENV{CXXFLAGS} .= " -D$include";
+}
+
+sub process_genericLogger {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'genericlogger-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'genericLogger');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+
+    #
+    # Get project, version and generate export.h
+    #
+    my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+    if ($project) {
+        generate_export_h($ac, $outdir, $project);
+    }
+    #
+    # Add include directory to compile flags
+    #
+    my $include = File::Spec->catdir($outdir, 'include');
+    $ac->msg_notice("Append -I$include to compile flags");
+    $ENV{CFLAGS} .= " -D$include";
+    $ENV{CXXFLAGS} .= " -D$include";
+    #
+    # Compile objects
+    #
+    configure_file
+        (
+         $ac,
+         File::Spec->catfile($outdir, 'include', 'genericLogger', 'internal', 'config.h.in'),
+         File::Spec->catfile($outdir, 'include', 'genericLogger', 'internal', 'config.h')
+        );
+
+    my $b = ExtUtils::CBuilder->new();
+    $b->compile
+        (
+         source => File::Spec->catfile($outdir, 'src', 'genericLogger.c'),
+         object_file => File::Spec->catfile($OBJ_DIR, 'genericLogger.o'),
+         include_dirs => [ File::Spec->catfile($outdir, 'include', 'genericLogger', 'internal') ]
+        );
+}
+
+sub get_project_and_version {
+    my ($ac, $dir) = @_;
+
+    my ($project, $version, $major, $minor, $patch);
+
+    my $CMakeLists = File::Spec->catfile($dir, 'CMakeLists.txt');
+    if (-r $CMakeLists) {
+        open(my $fh, '<', $CMakeLists) || die "Cannot open $CMakeLists, $!";
+        while (defined(my $line = <$fh>)) {
+            if ($line =~ /^\s*project\s*\(\s*(\w+).+VERSION\s*(\d+)\.(\d+)\.(\d+)/) {
+                ($project, $version, $major, $minor, $patch) = ($1, "$2.$3.$4", $2, $3, $4);
+                my $PROJECT = uc($project);
+                print "... Project $project, version $version\n";
+
+                foreach my $flag ("${PROJECT}_VERSION_MAJOR=$major", "${PROJECT}_VERSION_MINOR=$minor", "${PROJECT}_VERSION_PATCH=$patch", "${PROJECT}_VERSION=\"$version\"") {
+                    $ac->msg_notice("Append $flag to compile flags");
+                    $ENV{CFLAGS} .= " -D$flag";
+                    $ENV{CXXFLAGS} .= " -D$flag";
+                }
+
+                last;
+            }
+        }
+        close($fh) || "Cannot close $CMakeLists, $!";
+    }
+
+    return ($project, $version, $major, $minor, $patch);
+}
+
+sub generate_export_h {
+    my ($ac, $dir, $project) = @_;
+
+    my $export = File::Spec->catfile($dir, 'include', 'export.h');
+    print "Generating $export\n";
+    my $PROJECT = uc($project);
+    open(my $fh, '>', $export) || die "Cannot open $export, $!";
+    print $fh <<EXPORT;
+#ifndef ${project}_EXPORT_H
+#define ${project}_EXPORT_H
+
+/* We enforce static mode */
+#define ${project}_EXPORT
+#define ${PROJECT}_NO_EXPORT
+
+#endif /* ${project}_EXPORT_H */
+EXPORT
+    close($fh) || "Cannot close $export, $!";
 }
