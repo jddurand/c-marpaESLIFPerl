@@ -41,9 +41,9 @@ use Perl::OSType qw/is_os_type/;
 use POSIX qw/EXIT_SUCCESS WIFEXITED WEXITSTATUS/;
 use Try::Tiny;
 
-our $CONFIG_H = "config_autoconf.h"; # The file that we generate
-our $EXTRACT_DIR = File::Spec->catdir('inc', 'extract');
 our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
+our $CONFIG_H = File::Spec->catfile($EXTRA_INCLUDE_DIR, 'marpaESLIFPerl_autoconf.h'); # The file that we generate
+our $EXTRACT_DIR = File::Spec->catdir('inc', 'extract');
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -584,7 +584,7 @@ foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double'
 #ifdef HAVE_SYS_INTTYPES_H
 #include <sys/inttypes.h>
 #endif
-#ifdef HAVE_SYS_START_H
+#ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
 #ifdef HAVE_SYS_STDINT_H
@@ -628,6 +628,8 @@ PROLOGUE
         $ac->define_var("HAVE_SIZEOF_${WHAT}", 1);
     }
     if ($what eq 'void *') {
+        $sizeof{'VOID_STAR'} = $sizeof{$WHAT};
+        $WHAT = 'VOID_STAR';
         $ac->define_var('SIZEOF_VOID_STAR', $sizeof{$WHAT});
     }
 }
@@ -741,7 +743,6 @@ foreach my $_sign ('', 'u') {
         # We handle the _least and _fast variations
         #
         my %_HAVES = ();
-        my %_MYTYPES = ();
         my %_MYTYPEDEFS = ();
         my %_SIZEOFS = ();
         foreach my $_variation ('', '_least', '_fast') {
@@ -757,10 +758,10 @@ foreach my $_sign ('', 'u') {
             foreach my $_underscore ('', '_', '__') {
                 my $_type = "${_underscore}${_sign}int${_variation}${_size}_t";
                 my $_TYPE = uc(${_type});
-                my $sizeof = $ac->check_sizeof_type($_type, { action_on_true => sub { $_HAVES{"HAVE_${_TYPE}"} = 1 } });
+                $ac->check_sizeof_type($_type, { action_on_true => sub { $_HAVES{"HAVE_${_TYPE}"} = 1 } });
                 if ($_HAVES{"HAVE_${_TYPE}"}) {
                     $_HAVES{"HAVE_${_MYTYPE}"} = 1;
-                    $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = $sizeof;
+                    $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = $_sizeof;
                     $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_type};
                     if (${_type} eq ${_ctype}) {
                         $_HAVES{"HAVE_${_CTYPE}"} = 1;
@@ -818,36 +819,102 @@ foreach my $_sign ('', 'u') {
                     }
                 }
             }
-            $ac->define_var("HAVE_${_MYTYPE}", $_HAVES{"HAVE_${_MYTYPE}"});
-            $ac->define_var("SIZEOF_${_MYTYPE}", $_SIZEOFS{"SIZEOF_${_MYTYPE}"});
-            $ac->define_var("HAVE_${_CTYPE}", $_HAVES{"HAVE_${_CTYPE}"});
-            $ac->define_var("${_MYTYPEDEF}", $_MYTYPEDEFS{"${_MYTYPEDEF}"});
-            $ac->define_var("${_MYTYPEMIN}", $_MYTYPEMINMAX{"${_MYTYPEMIN}"});
-            $ac->define_var("${_MYTYPEMAX}", $_MYTYPEMINMAX{"${_MYTYPEMAX}"});
+            if ($_HAVES{"HAVE_${_MYTYPE}"}) {
+                $ac->define_var("HAVE_${_MYTYPE}", $_HAVES{"HAVE_${_MYTYPE}"});
+                $ac->define_var("SIZEOF_${_MYTYPE}", $_SIZEOFS{"SIZEOF_${_MYTYPE}"});
+                $ac->define_var("HAVE_${_CTYPE}", $_HAVES{"HAVE_${_CTYPE}"});
+                $ac->define_var("${_MYTYPEDEF}", $_MYTYPEDEFS{"${_MYTYPEDEF}"});
+                $ac->define_var("${_MYTYPEMIN}", $_MYTYPEMINMAX{"${_MYTYPEMIN}"});
+                $ac->define_var("${_MYTYPEMAX}", $_MYTYPEMINMAX{"${_MYTYPEMAX}"});
+            }
         }
     }
 }
+#
+# Integer type capable of holding object pointers
+#
+foreach my $_sign ('', 'u') {
+    my $_sizeof = $sizeof{VOID_STAR};
+    my $_ctype =  "${_sign}intptr_t";
+    my $_CTYPE = uc($_ctype);
+    my $_mytype = "CMAKE_HELPERS_${_sign}intptr";
+    my $_MYTYPE = uc($_mytype);
+    my $_MYTYPEDEF = "${_MYTYPE}_TYPEDEF";
 
+    my %_HAVES = ();
+    my %_MYTYPEDEFS = ();
+    my %_SIZEOFS = ();
+
+    my $_type = "${_sign}intptr_t";
+    my $_TYPE = uc(${_type});
+    $ac->check_sizeof_type($_type, { action_on_true => sub { $_HAVES{"HAVE_${_TYPE}"} = 1 } });
+    if ($_HAVES{"HAVE_${_TYPE}"}) {
+        $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+        $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = $_sizeof;
+        $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_type};
+        if (${_type} eq ${_ctype}) {
+            $_HAVES{"HAVE_${_CTYPE}"} = 1;
+        } else {
+            $_HAVES{"HAVE_${_CTYPE}"} = 0;
+        }
+    }
+    if (! $_HAVES{"HAVE_${_MYTYPE}"}) {
+        #
+        # Try with C types
+        #
+        foreach ('char', 'short', 'int', 'long', 'long long') {
+            my $_c = $_; # Because a foreach my $_c would have made $_c a readonly variable
+            if ($_sign eq "u") {
+                $_c = "unsigned ${_c}";
+            }
+            my $_C = uc(${_c});
+            $_C =~ s/ /_/g;
+            $_HAVES{"HAVE_SIZEOF_${_C}"} = (exists($sizeof{$_C}) && $sizeof{$_C}) ? 1 : 0;
+            if ($_HAVES{"HAVE_SIZEOF_${_C}"}) {
+                $_SIZEOFS{"SIZEOF_${_C}"} = $sizeof{$_C};
+                if ($_SIZEOFS{"SIZEOF_${_C}"} == ${_sizeof}) {
+                    $_HAVES{"HAVE_${_MYTYPE}"} = 1;
+                    $_SIZEOFS{"SIZEOF_${_MYTYPE}"} = ${_sizeof};
+                    $_MYTYPEDEFS{"${_MYTYPEDEF}"} = ${_c};
+                    last;
+                }
+            }
+        }
+    }
+    if ($_HAVES{"HAVE_${_MYTYPE}"}) {
+        $ac->define_var("HAVE_${_MYTYPE}", $_HAVES{"HAVE_${_MYTYPE}"});
+        $ac->define_var("SIZEOF_${_MYTYPE}", $_SIZEOFS{"SIZEOF_${_MYTYPE}"});
+        $ac->define_var("HAVE_${_CTYPE}", $_HAVES{"HAVE_${_CTYPE}"});
+        $ac->define_var("${_MYTYPEDEF}", $_MYTYPEDEFS{"${_MYTYPEDEF}"});
+    }
+}
+#
+# Remove inc/include directory
+#
+print "... Suppress directory $EXTRA_INCLUDE_DIR\n";
+remove_tree($EXTRA_INCLUDE_DIR, { safe => 1 });
+print "... Create directory $EXTRA_INCLUDE_DIR\n";
+make_path($EXTRA_INCLUDE_DIR);
 #
 # Remove inc/extract directory
 #
 print "... Suppress directory $EXTRACT_DIR\n";
 remove_tree($EXTRACT_DIR, { safe => 1 });
-print "... Create directory  $EXTRACT_DIR\n";
+print "... Create directory $EXTRACT_DIR\n";
 make_path($EXTRACT_DIR);
+#
+# Write config file
+#
+$ac->write_config_h($CONFIG_H);
 #
 # Extract and process tarballs in an order that we know in advance
 #
 process_genericStack();
 
-configure_file($ac, "stdint.h.in", "stdint.h");
+configure_file($ac, File::Spec->catfile('etc', 'stdint.h.in'), File::Spec->catfile($EXTRA_INCLUDE_DIR, 'stdint.h'));
 if (! $HAVE_HEADERS{"stdint.h"} && ! -e "stdint.h") {
     print "Generating stdint.h\n";
 }
-#
-# Write config file
-#
-$ac->write_config_h($CONFIG_H);
 
 exit(EXIT_SUCCESS);
 
@@ -2454,13 +2521,15 @@ BODY
 sub configure_file {
     my ($ac, $in, $out) = @_;
 
+    print "Doing transformation $in -> $out\n";
+
     #
     # We want to look to:
     # #cmakedefine XXX
     # #cmakedefine XXX @YYY@
     #
 
-    my $in_define = $in;
+    my $in_define = basename($out);
     $in_define =~ s/[^a-zA-Z0-9_]/_/g;
     my $IN_DEFINE = uc($in_define);
     #
@@ -2473,33 +2542,30 @@ sub configure_file {
     open(my $fhout, '>', $out) || die "Cannot open for writing $out, $!";
     print $fhout "#ifndef AUTOCONF_${IN_DEFINE}\n";
     print $fhout "#define AUTOCONF_${IN_DEFINE}\n";
-
+    print $fhout "#include <" . basename($CONFIG_H) . ">\n";
     #
     # Do input replacement and write it
     #
     open(my $fhin, '<', $in) || die "Cannot open for reading $in, $!";
     while (defined(my $line = <$fhin>)) {
-        my $define = undef;
-        my $value = undef;
-        if ($line =~ /^\s*#\s*cmakedefine\s+([a-zA-Z0-9_]+)\s+\@([a-zA-Z0-9_]+)\@/) {
-            ($define, $value) = ($1, $2);
-        } elsif ($line =~ /^\s*#\s*cmakedefine\s+([a-zA-Z0-9_]+)/) {
-            $define = $1;
-        }
-        if (! defined($define)) {
-            print $fhout "$line\n";
+        #
+        # We ignore all lines that start with #cmakedefine: our config.h is doing all the #define's
+        #
+        if ($line =~ /^\s*#\s*cmakedefine\b/) {
             next;
         }
         #
-        # The #cmakedefine XXX @YYY@ case: We assume that YYY must match XXX - we do not support another case
+        # Replace @XXX@ with XXX anyway if it exist. We support only one occurence.
         #
-        if (defined($value) && $define ne $value) {
-            die "Unsupported case #cmakedefine $define \@$value\@\n";
+        if ($line =~ /\@([a-zA-Z0-9_]+)\@/) {
+            if (! exists($ac->{defines}->{$1}) || ! defined($ac->{defines}->{$1})) {
+                next;
+            }
+            my $value = $ac->{defines}->{$1}->[0];
+            $line =~ s/\@([a-zA-Z0-9_]+)\@/$value/;
         }
-        #
-        # The #cmakedefine case : it is already handle with the include of $CONFIG_H
-        #
-        next;
+        
+        print $fhout "$line";
     }
     close($fhin) || warn "Cannot close $in, $!";
     
