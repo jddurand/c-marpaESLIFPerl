@@ -28,8 +28,8 @@ jobs:
     - name: Set PAUSE identity
       shell: cmd
       run: |
-        echo user JDDPAUSE > %USERPROFILE%\.pause
-        echo password WellWellComeOn >> %USERPROFILE%\.pause
+        echo user JDDPAUSE > config.ini
+        echo password WellWellComeOn >> config.ini
 
     - name: Set up perl
       uses: shogo82148/actions-setup-perl@v1
