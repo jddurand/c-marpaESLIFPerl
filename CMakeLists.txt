@@ -150,6 +150,7 @@ if(INSTALL_DEPENDENCIES)
       Log::Any
       Math::BigFloat
       Math::BigInt
+      Pod::Coverage::TrustPod
       Safe::Isa
       Test::CPAN::Changes
       Test::CPAN::Meta
