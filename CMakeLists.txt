@@ -183,8 +183,14 @@ set(tarballs-destdir ${CMAKE_CURRENT_SOURCE_DIR}/etc/tarballs)
 execute_process(COMMAND ${CMAKE_COMMAND} -E rm -rf ${tarballs-destdir})
 execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${tarballs-destdir})
 foreach(dep IN LISTS deps)
-  cmake_path(GET dep FILENAME depname-src)
-  set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
+  cmake_path(GET dep FILENAME depname_src)
+  #
+  # Skip things that are bundled
+  #
+  if((depname_src STREQUAL libiconv) OR (pcre2_src STREQUAL libiconv))
+    continue()
+  endif()
+  set(dep-tgz ${tarballs-destdir}/${depname_src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} .
@@ -196,8 +202,8 @@ endforeach()
 #
 # Generate a minimal marpaeslifperl-src.tar.gz
 #
-set(depname-src marpaeslifperl-src)
-set(dep-tgz ${tarballs-destdir}/${depname-src}.tar.gz)
+set(depname_src marpaeslifperl-src)
+set(dep-tgz ${tarballs-destdir}/${depname_src}.tar.gz)
   add_custom_command(
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt

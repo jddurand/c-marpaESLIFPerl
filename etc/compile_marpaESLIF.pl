@@ -12,7 +12,9 @@ use diagnostics;
 #
 # Eventual extra includes are generated in inc/include directory.
 #
-# Object files are in obj directory
+# Object files are in objs directory
+#
+# Library files are in libs directory
 #
 
 my $have_cppguess;
@@ -36,6 +38,8 @@ use Cwd qw/abs_path/;
 use ExtUtils::CBuilder 0.280224; # 0.280224 is to make sure we have the support of $ENV{CXX};
 use File::chdir;
 use File::Basename;
+use File::Copy;
+use File::Find;
 use File::Path qw/make_path remove_tree/;
 use File::Spec;
 use File::Which;
@@ -48,7 +52,7 @@ our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
 our $CONFIG_H = File::Spec->catfile($EXTRA_INCLUDE_DIR, 'marpaESLIFPerl_autoconf.h'); # The file that we generate
 our $EXTRACT_DIR = 'extract';
 our $TARBALLS_DIR = File::Spec->catdir('etc', 'tarballs');
-our $OBJ_DIR = 'obj';
+our $OBJS_DIR = 'objs';
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -74,7 +78,7 @@ $ENV{CXXFLAGS} = $cbuilder_config{cxxflags} // $cbuilder_config{ccflags} // '';
 $ENV{LD} = $cbuilder_config{ld} // $ENV{CC};
 $ENV{LDFLAGS} //= '';
 my @OTHERLDFLAGS = ();
-my %CBUILDER_EXTRA_CONFIG = ();
+my $optimize;
 
 print "==========================================\n";
 print "Original compilers and linker settings as per ExtUtils::CBuilder\n";
@@ -91,50 +95,8 @@ print "==========================================\n";
 print "\n";
 
 my $ac = Config::AutoConf->new();
+# goto jdd;
 $ac->check_cc;
-#
-# We want to align lua integer type with perl ivtype
-#
-my $ivtype = $Config{ivtype} || '';
-if ($ivtype eq 'int') {
-    $ac->msg_notice("Use int for lua_Integer");
-    $ENV{CFLAGS} .= " -DLUA_INT_TYPE=1";
-    $ENV{CXXFLAGS} .= " -DLUA_INT_TYPE=1";
-} elsif ($ivtype eq 'long') {
-    $ac->msg_notice("Use long for lua_Integer");
-    $ENV{CFLAGS} .= " -DLUA_INT_TYPE=2";
-    $ENV{CXXFLAGS} .= " -DLUA_INT_TYPE=2";
-} elsif ($ivtype eq 'long long') {
-    $ac->msg_notice("Use long long for lua_Integer");
-    $ENV{CFLAGS} .= " -DLUA_INT_TYPE=3";
-    $ENV{CXXFLAGS} .= " -DLUA_INT_TYPE=3";
-} else {
-    $ac->msg_notice("No exact map found in lua for perl integer type \"$ivtype\": use long long for lua_Integer");
-    $ENV{CFLAGS} .= " -DLUA_INT_TYPE=3";
-    $ENV{CXXFLAGS} .= " -DLUA_INT_TYPE=3";
-}
-
-#
-# We want to align lua float type with perl nvtype
-#
-my $nvtype = $Config{nvtype} || '';
-if ($nvtype eq 'float') {
-    $ac->msg_notice("Use float for lua_Number");
-    $ENV{CFLAGS} .= " -DLUA_FLOAT_TYPE=1";
-    $ENV{CXXFLAGS} .= " -DLUA_FLOAT_TYPE=1";
-} elsif ($nvtype eq 'double') {
-    $ac->msg_notice("Use double for lua_Number");
-    $ENV{CFLAGS} .= " -DLUA_FLOAT_TYPE=2";
-    $ENV{CXXFLAGS} .= " -DLUA_FLOAT_TYPE=2";
-} elsif ($nvtype eq 'long double') {
-    $ac->msg_notice("Use long double for lua_Number");
-    $ENV{CFLAGS} .= " -DLUA_FLOAT_TYPE=3";
-    $ENV{CXXFLAGS} .= " -DLUA_FLOAT_TYPE=3";
-} else {
-    $ac->msg_notice("No exact map found in lua for perl double type \"$nvtype\": use long double for lua_Number");
-    $ENV{CFLAGS} .= " -DLUA_FLOAT_TYPE=3";
-    $ENV{CXXFLAGS} .= " -DLUA_FLOAT_TYPE=3";
-}
 #
 # Guess CXX configuration
 #
@@ -265,7 +227,7 @@ if ((! "$ENV{CXX}") || (! which($ENV{CXX}))) {
 my $isc99 = 0;
 if (($cbuilder_config{cc} // 'cc') ne 'cl') {
     $ac->msg_checking("if C99 is enabled by default:");
-    if (try_c("#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L\n#error \"C99 is not enabled\"\n#endif\nint main(){return 0;}")) {
+    if (try_compile("#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L\n#error \"C99 is not enabled\"\n#endif\nint main(){return 0;}")) {
         $ac->msg_result('yes');
         $isc99 = 1;
     } else {
@@ -273,8 +235,8 @@ if (($cbuilder_config{cc} // 'cc') ne 'cl') {
         $ac->msg_notice("what CFLAGS is required for C99:");
         $ac->msg_result('');
         foreach my $flag (qw/-std=gnu99 -std=c99 -c99 -AC99 -xc99=all -qlanglvl=extc99/) {
-            $ac->msg_checking("if flag $flag works:");
-            if (try_c("#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L\n#error \"C99 is not enabled\"\n#endif\nint main(){return 0;}", { extra_compiler_flags => $flag })) {
+            $ac->msg_checking("if flag $flag works");
+            if (try_compile("#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199901L\n#error \"C99 is not enabled\"\n#endif\nint main(){return 0;}", { extra_compiler_flags => $flag })) {
                 $ac->msg_result('yes');
                 $ENV{CFLAGS} .= " $flag";
                 $isc99 = 1;
@@ -321,9 +283,9 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
     if (($cbuilder_config{cc} // 'cc') eq 'cl') {
         foreach my $flag ("/O2") {
             $ac->msg_checking("if flag $flag works:");
-            if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $flag })) {
+            if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $flag })) {
                 $ac->msg_result('yes');
-                $CBUILDER_EXTRA_CONFIG{optimize} .= " $flag";
+                $optimize .= " $flag";
                 last;
             } else {
                 $ac->msg_result('no');
@@ -336,7 +298,7 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
         #
         my $tmpflag = '-Werror';
         $ac->msg_checking("if flag $tmpflag works:");
-        if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
+        if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
             $ac->msg_result('yes');
             $has_Werror = 1;
         } else {
@@ -351,9 +313,9 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
                           "-xO3"          # CC
             ) {
             $ac->msg_checking("if flag $flag works:");
-            if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
+            if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
                 $ac->msg_result('yes');
-                $CBUILDER_EXTRA_CONFIG{optimize} .= " $flag";
+                $optimize .= " $flag";
                 last;
             } else {
                 $ac->msg_result('no');
@@ -491,13 +453,20 @@ check_signbit($ac);
 check_copysign($ac);
 check_copysignf($ac);
 check_copysignl($ac);
+check_nl_langinfo($ac);
+my $have_getc_unlocked = check_getc_unlocked($ac);
+my $is_big_endian = check_big_endian($ac);
+my $have__O_BINARY = $ac->check_decl('_O_BINARY', { prologue => "#include <fcntl.h>" });
+my $have_wcrtomb = $ac->check_decl('wcrtomb', { prologue => "#include <wchar.h>" });
+my $have_mbrtowc = $ac->check_decl('mbrtowc', { prologue => "#include <wchar.h>" });
+my $broken_wchar = check_broken_wchar($ac);
 my $is_gnu = check_compiler_is_gnu($ac);
 my $is_clang = check_compiler_is_clang($ac);
 if($has_Werror) {
     my $tmpflag = '-Werror=attributes';
     my $has_Werror_attributes = 0;
     $ac->msg_checking("if flag $tmpflag works:");
-    if (try_c("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
+    if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
         $ac->msg_result('yes');
         $has_Werror_attributes = 1;
     } else {
@@ -514,7 +483,7 @@ if($has_Werror) {
 check_gnu_source($ac);
 
 my %sizeof = ();
-foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double', 'long double', 'unsigned char', 'unsigned short', 'unsigned int', 'unsigned long', 'unsigned long long', 'size_t', 'void *', 'ptrdiff_t') {
+foreach my $what ('char', 'short', 'int', 'long', 'long long', 'float', 'double', 'long double', 'unsigned char', 'unsigned short', 'unsigned int', 'unsigned long', 'unsigned long long', 'size_t', 'void *', 'ptrdiff_t', 'wchar_t') {
     my $prologue = <<PROLOGUE;
 #ifdef HAVE_CTYPE_H
 #include <ctype.h>
@@ -887,27 +856,25 @@ foreach my $_sign ('', 'u') {
         $ac->define_var("${_MYTYPEDEF}", $_MYTYPEDEFS{"${_MYTYPEDEF}"});
     }
 }
+$ac->check_func('bcopy', { action_on_true => $ac->define_var('HAVE_BCOPY', 1) });
+$ac->check_func('memmove', { action_on_true => $ac->define_var('HAVE_MEMMOVE', 1) });
+$ac->check_func('strerror', { action_on_true => $ac->define_var('HAVE_STRERROR', 1) });
+$ac->check_func('memfd_create', { action_on_true => $ac->define_var('HAVE_MEMFD_CREATE', 1) });
+$ac->check_func('secure_getenv', { action_on_true => $ac->define_var('HAVE_SECURE_GETENV', 1) });
 #
-# Remove extra include directory
+# Prune work directories
 #
-print "Removing directory $EXTRA_INCLUDE_DIR\n";
+print "Pruning directory $EXTRA_INCLUDE_DIR\n";
 remove_tree($EXTRA_INCLUDE_DIR, { safe => 1 });
-print "Creating directory $EXTRA_INCLUDE_DIR\n";
 make_path($EXTRA_INCLUDE_DIR);
-#
-# Remove extract directory
-#
-print "Removing directory $EXTRACT_DIR\n";
+
+print "Pruning directory $EXTRACT_DIR\n";
 remove_tree($EXTRACT_DIR, { safe => 1 });
-print "Creating directory $EXTRACT_DIR\n";
 make_path($EXTRACT_DIR);
-#
-# Remove obj directory
-#
-print "Removing directory $OBJ_DIR\n";
-remove_tree($OBJ_DIR, { safe => 1 });
-print "Creating directory $OBJ_DIR\n";
-make_path($OBJ_DIR);
+
+print "Pruning directory $OBJS_DIR\n";
+remove_tree($OBJS_DIR, { safe => 1 });
+make_path($OBJS_DIR);
 #
 # Write config file
 #
@@ -947,25 +914,31 @@ if ($ENV{CC} =~ /\bcl\b/) {
 #
 # Extract and process tarballs in an order that we know in advance
 #
+process_genericLogger($ac);
+process_tconv($ac);
 process_genericStack($ac);
 process_genericHash($ac);
 process_genericSparseArray($ac);
-process_genericLogger($ac);
+process_marpaWrapper($ac);
+process_marpaESLIF($ac);
 
 exit(EXIT_SUCCESS);
 
-sub try_c {
+sub try_compile {
     no warnings 'once';
     
     my ($csource, $options) = @_;
 
     $options //= {};
     my $extra_compiler_flags = $options->{extra_compiler_flags};
-    my $link = $options->{link};
-    my $run = $options->{run};
+    my $link = $options->{link} // 0;
+    my $run = $options->{run} // 0;
     my $cbuilder_extra_config = $options->{cbuilder_extra_config};
     my $output_ref = $options->{output_ref};
     my $silent = $options->{silent} // 1;
+    my $compile_error_is_fatal = $options->{compile_error_is_fatal} // 0;
+    my $link_error_is_fatal = $options->{link_error_is_fatal} // 0;
+    my $run_error_is_fatal = $options->{run_error_is_fatal} // 0;
 
     my $stderr_and_stdout_txt = "stderr_and_stdout.txt";
     #
@@ -993,6 +966,9 @@ sub try_c {
     #
     my $object_file;
     my $exe_file;
+    my $have_compile_error = 1;
+    my $have_link_error = 0;
+    my $have_run_error = 0;
     try {
         my $cbuilder = ExtUtils::CBuilder->new(config => $cbuilder_extra_config, quiet => 1);
         $object_file = basename($cbuilder->object_file($source));
@@ -1001,15 +977,18 @@ sub try_c {
             object_file          => $object_file,
             extra_compiler_flags => $extra_compiler_flags
             );
+        $have_compile_error = 0;
 	#
 	# Optionally link
 	#
         if ($link) {
+            $have_link_error = 1;
             $exe_file = basename($cbuilder->exe_file($object_file));
             my $exe = $cbuilder->link_executable(
                 objects              => [ $object_file ],
                 exe_file             => $exe_file
                 );
+            $have_link_error = 0;
 	    #
 	    # Optionnally run
 	    #
@@ -1017,8 +996,13 @@ sub try_c {
                 if (! File::Spec->file_name_is_absolute($exe)) {
                     $exe = File::Spec->rel2abs($exe);
                 }
+                $have_run_error = 1;
                 my $output = `$exe`;
                 if (WIFEXITED(${^CHILD_ERROR_NATIVE})) {
+                    #
+                    # Child exited normally
+                    #
+                    $have_run_error = 0;
                     $rc = (WEXITSTATUS(${^CHILD_ERROR_NATIVE}) == EXIT_SUCCESS) ? 1 : 0;
                 } else {
                     $rc = 0;
@@ -1047,6 +1031,16 @@ sub try_c {
     open(STDERR, ">&OLDERR") or die "Can't dup OLDERR: $!";
     unlink $stderr_and_stdout_txt;
 
+    if ($have_compile_error && $compile_error_is_fatal) {
+        die "Compilation error and this is fatal";
+    }
+    if ($have_link_error && $link_error_is_fatal) {
+        die "Link error and this is fatal";
+    }
+    if ($have_run_error && $run_error_is_fatal) {
+        die "Run error and this is fatal";
+    }
+
     return $rc;
 }
 
@@ -1055,7 +1049,7 @@ sub try_link {
 
     $options //= {};
 
-    return try_c($csource, { %$options, link => 1 });
+    return try_compile($csource, { %$options, link => 1 });
 }
 
 sub try_run {
@@ -1063,7 +1057,7 @@ sub try_run {
 
     $options //= {};
 
-    return try_c($csource, { %$options, link => 1, run => 1 });
+    return try_compile($csource, { %$options, link => 1, run => 1 });
 }
 
 sub try_output {
@@ -1071,7 +1065,7 @@ sub try_output {
 
     $options //= {};
 
-    return try_c($csource, { %$options, link => 1, run => 1, output_ref => $output_ref });
+    return try_compile($csource, { %$options, link => 1, run => 1, output_ref => $output_ref });
 }
 
 sub check_math {
@@ -2262,6 +2256,97 @@ BODY
     }
 }
 
+sub check_nl_langinfo {
+    my ($ac) = @_;
+
+    $ac->msg_checking("langinfo's CODESET");
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+
+PROLOGUE
+    my $body = <<BODY;
+  char *cs = nl_langinfo(CODESET);
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_run($program)) {
+        $ac->msg_result("yes");
+        $ac->define_var("HAVE_LANGINFO_CODESET", 1);
+    } else {
+        $ac->msg_result("no");
+    }
+}
+
+sub check_getc_unlocked {
+    my ($ac) = @_;
+
+    my $rc;
+    $ac->msg_checking('getc_unlocked');
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#endif
+
+PROLOGUE
+    my $body = <<BODY;
+  getc_unlocked(stdin);
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_compile($program)) {
+        $ac->msg_result("yes");
+        $ac->define_var("HAVE_DECL_LANGINFO_CODESET", 1);
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+
+    return $rc;
+}
+
+sub check_broken_wchar {
+    my ($ac) = @_;
+
+    my $rc;
+    $ac->msg_checking('broken wchar.h');
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+#ifdef HAVE_WCHAR_H
+#include <wchar.h>
+#endif
+
+wchar_t w;
+
+PROLOGUE
+    my $body = <<BODY;
+  exit(0);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    if (try_compile($program)) {
+        $ac->msg_result("no");
+        $rc = 0;
+    } else {
+        $ac->msg_result("yes");
+        $rc = 1;
+    }
+
+    return $rc;
+}
+
 sub check_gnu_source {
     my ($ac) = @_;
 
@@ -2587,7 +2672,7 @@ sub configure_file {
 
     #
     # We want to look to:
-    # #cmakedefine XXX
+    # #cmakedefine[01] XXX
     # #cmakedefine XXX @YYY@
     #
 
@@ -2609,7 +2694,7 @@ sub configure_file {
         #
         # We ignore all lines that start with #cmakedefine: our config.h is doing all the #define's
         #
-        if ($line =~ /^\s*#\s*cmakedefine\b/) {
+        if ($line =~ /^\s*#\s*cmakedefine(?:01)?\b/) {
             next;
         }
         #
@@ -2642,22 +2727,6 @@ sub process_genericStack {
         local $CWD = $outdir;
         $tar->extract();
     }
-    if (0) {
-        #
-        # Not needed
-        #
-        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
-        if ($project) {
-            generate_export_h($ac, $outdir, $project);
-        }
-    }
-    #
-    # Add include directory to compile flags
-    #
-    my $include = File::Spec->catdir($outdir, 'include');
-    $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -I$include";
-    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericHash {
@@ -2673,22 +2742,6 @@ sub process_genericHash {
         local $CWD = $outdir;
         $tar->extract();
     }
-    if (0) {
-        #
-        # Not needed
-        #
-        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
-        if ($project) {
-            generate_export_h($ac, $outdir, $project);
-        }
-    }
-    #
-    # Add include directory to compile flags
-    #
-    my $include = File::Spec->catdir($outdir, 'include');
-    $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -I$include";
-    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericSparseArray {
@@ -2704,22 +2757,6 @@ sub process_genericSparseArray {
         local $CWD = $outdir;
         $tar->extract();
     }
-    if (0) {
-        #
-        # Not needed
-        #
-        my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
-        if ($project) {
-            generate_export_h($ac, $outdir, $project);
-        }
-    }
-    #
-    # Add include directory to compile flags
-    #
-    my $include = File::Spec->catdir($outdir, 'include');
-    $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -I$include";
-    $ENV{CXXFLAGS} .= " -I$include";
 }
 
 sub process_genericLogger {
@@ -2735,21 +2772,17 @@ sub process_genericLogger {
         local $CWD = $outdir;
         $tar->extract();
     }
-
     #
-    # Get project, version and generate export.h
+    # Get project, version and generate compile flag, export.h
     #
     my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
-    if ($project) {
-        generate_export_h($ac, $outdir, $project);
-    }
+    my $PROJECT = uc($project);
+    my @extra_compiler_flags = ("-D${PROJECT}_NTRACE", "-D${PROJECT}_VERSION_MAJOR=$major", "-D${PROJECT}_VERSION_MINOR=$minor", "-D${PROJECT}_VERSION_PATCH=$patch", "-D${PROJECT}_VERSION=\"$version\"");
+    generate_export_h($ac, $outdir, $project);
     #
     # Add include directory to compile flags
     #
-    my $include = File::Spec->catdir($outdir, 'include');
-    $ac->msg_notice("Append -I$include to compile flags");
-    $ENV{CFLAGS} .= " -I$include";
-    $ENV{CXXFLAGS} .= " -I$include";
+    my @include_dirs = ( File::Spec->catdir($outdir, 'include') );
     #
     # Configure
     #
@@ -2763,14 +2796,631 @@ sub process_genericLogger {
     #
     # Compile
     #
-    my $b = ExtUtils::CBuilder->new();
+    my $b = get_cbuilder();
+    my @sources = ( File::Spec->catfile($outdir, 'src', 'genericLogger.c') );
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             include_dirs => \@include_dirs,
+             object_file => $object_file,
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_tconv {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'tconv-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'tconv');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    #
+    # Inside tconv there is libiconv
+    #
+    process_libiconv($ac);
+    #
+    # Inside tconv there is cchardet
+    #
+    process_cchardet($ac);
+    #
+    # Get project, version and generate compile flag, export.h
+    #
+    my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
     my $PROJECT = uc($project);
-    $b->compile
-        (
-         source => File::Spec->catfile($outdir, 'src', 'genericLogger.c'),
-         object_file => File::Spec->catfile($OBJ_DIR, 'genericLogger.o'),
-         extra_compiler_flags => [ "-D${PROJECT}_NTRACE" ]
+    my @extra_compiler_flags = (
+        '-DTCONV_HAVE_ICONV=1',
+        '-DICONV_CAN_TRANSLIT=1',
+        '-DICONV_CAN_IGNORE=1',
+        "-D${PROJECT}_NTRACE",
+        "-D${PROJECT}_VERSION_MAJOR=$major",
+        "-D${PROJECT}_VERSION_MINOR=$minor",
+        "-D${PROJECT}_VERSION_PATCH=$patch",
+        "-D${PROJECT}_VERSION=\"$version\""
         );
+    generate_export_h($ac, $outdir, $project);
+    #
+    # Configure
+    #
+    configure_file
+        (
+         $ac,
+         File::Spec->catfile($outdir, 'include', 'tconv', 'internal', 'config.h.in'),
+         File::Spec->catfile($outdir, 'include', 'tconv', 'internal', 'config.h')
+        );
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @sources =
+        (
+         File::Spec->catfile($outdir, 'src', 'tconv.c'),
+         File::Spec->catfile($outdir, 'src', 'tconv', 'charset', 'tconv_charset_cchardet.c'),
+         File::Spec->catfile($outdir, 'src', 'tconv', 'convert', 'tconv_convert_iconv.c'),
+        );
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => [
+                 File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
+                 File::Spec->catdir($EXTRACT_DIR, 'cchardet-1.0.0', 'src', 'ext', 'libcharsetdetect'),
+                 File::Spec->catdir($outdir, 'include')
+             ],
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_marpaWrapper {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'marpawrapper-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'marpaWrapper');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    #
+    # Get project, version and generate compile flag, export.h
+    #
+    my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+    my $PROJECT = uc($project);
+    my @extra_compiler_flags = (
+        "-D${PROJECT}_NTRACE",
+        "-D${PROJECT}_VERSION_MAJOR=$major",
+        "-D${PROJECT}_VERSION_MINOR=$minor",
+        "-D${PROJECT}_VERSION_PATCH=$patch",
+        "-D${PROJECT}_VERSION=\"$version\"",
+        "-DMARPA_LIB_MAJOR_VERSION=MARPA_MAJOR_VERSION",
+        "-DMARPA_LIB_MINOR_VERSION=MARPA_MINOR_VERSION",
+        "-DMARPA_LIB_MICRO_VERSION=MARPA_MICRO_VERSION",
+        );
+    generate_export_h($ac, $outdir, $project);
+    #
+    # Configure
+    #
+    configure_file
+        (
+         $ac,
+         File::Spec->catfile($outdir, 'include', 'marpaWrapper', 'internal', 'config.h.in'),
+         File::Spec->catfile($outdir, 'include', 'marpaWrapper', 'internal', 'config.h')
+        );
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @sources =
+        (
+         File::Spec->catfile($outdir, 'amalgamation', 'marpaWrapper.c')
+        );
+    my @include_dirs =
+        (
+         File::Spec->catdir($outdir, 'libmarpa', 'work', 'stage'),
+         File::Spec->catdir($outdir, 'include', 'marpaWrapper', 'internal'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericStack', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericHash', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericSparseArray', 'include'),
+         File::Spec->catdir($outdir, 'include')
+        );
+
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => \@include_dirs,
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_marpaESLIF {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'marpaeslif-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'marpaESLIF');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    #
+    # We depend on pcre2 object that we distribute
+    #
+    process_pcre2($ac);
+    #
+    # We depend on luaunpanic
+    #
+    process_luaunpanic($ac);
+    #
+    # We depend on luaunpanic
+    #
+    process_marpaESLIFLua($ac);
+    #
+    # Get project, version and generate compile flag, export.h
+    #
+    my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+    my $PROJECT = uc($project);
+    $ac->define_var("MARPAESLIF_UINT32_T", "CMAKE_HELPERS_UINT32_TYPEDEF");
+    $ac->define_var("MARPAESLIF_UINT64_T", "CMAKE_HELPERS_UINT64_TYPEDEF");
+    $ac->define_var("WORDS_BIGENDIAN", 1) if $is_big_endian;
+    my @extra_compiler_flags = ();
+    push(@extra_compiler_flags, "-D${PROJECT}_NTRACE");
+    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_MAJOR=$major");
+    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_MINOR=$minor");
+    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_PATCH=$patch");
+    push(@extra_compiler_flags, "-D${PROJECT}_VERSION=\"$version\"");
+    if ($ENV{CC} =~ /\bcl\b/) {
+        push(@extra_compiler_flags, "-DLUA_DL_DLL=1");
+    } else {
+        push(@extra_compiler_flags, "-DLUA_USE_DLOPEN=1");
+        push(@extra_compiler_flags, "-DLUA_USE_POSIX=1");
+    }
+    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_MAJOR=$major");
+    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_MINOR=$minor");
+    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_PATCH=$patch");
+    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION=\"$version\"");
+    push(@extra_compiler_flags, "-DMARPAESLIFLUA_EMBEDDED=1");
+    push(@extra_compiler_flags, "-DMARPAESLIF_BUFSIZ=1048576");
+    push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
+    #
+    # We want to align lua integer type with perl ivtype
+    #
+    my $ivtype = $Config{ivtype} || '';
+    if ($ivtype eq 'int') {
+        push(@extra_compiler_flags, "-DLUA_INT_TYPE=1");
+    } elsif ($ivtype eq 'long') {
+        push(@extra_compiler_flags, "-DLUA_INT_TYPE=2");
+    } elsif ($ivtype eq 'long long') {
+        push(@extra_compiler_flags, "-DLUA_INT_TYPE=3");
+    } else {
+        $ac->msg_notice("No exact map found in lua for perl integer type \"$ivtype\": use long long for lua_Integer");
+        push(@extra_compiler_flags, "-DLUA_INT_TYPE=3");
+    }
+    #
+    # We want to align lua float type with perl nvtype
+    #
+    my $nvtype = $Config{nvtype} || '';
+    if ($nvtype eq 'float') {
+        push(@extra_compiler_flags, "-DLUA_FLOAT_TYPE=1");
+    } elsif ($nvtype eq 'double') {
+        push(@extra_compiler_flags, "-DLUA_FLOAT_TYPE=2");
+    } elsif ($nvtype eq 'long double') {
+        push(@extra_compiler_flags, "-DLUA_FLOAT_TYPE=3");
+    } else {
+        $ac->msg_notice("No exact map found in lua for perl double type \"$nvtype\": use long double for lua_Number");
+        push(@extra_compiler_flags, "-DLUA_FLOAT_TYPE=3");
+    }
+    generate_export_h($ac, $outdir, $project);
+    #
+    # Configure
+    #
+    configure_file
+        (
+         $ac,
+         File::Spec->catfile($outdir, 'include', 'marpaESLIF', 'internal', 'config.h.in'),
+         File::Spec->catfile($outdir, 'include', 'marpaESLIF', 'internal', 'config.h')
+        );
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @sources =
+        (
+         File::Spec->catfile($outdir, 'src', 'marpaESLIF.c')
+        );
+    my @include_dirs =
+        (
+         File::Spec->catdir($EXTRACT_DIR, 'marpaWrapper', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'tconv', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'pcre2-10.42', 'src'),
+         File::Spec->catdir($EXTRACT_DIR, 'luaunpanic', 'include', 'luaunpanic', 'lua'), # For luaconf.h
+         File::Spec->catdir($EXTRACT_DIR, 'luaunpanic', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'luaunpanic', 'src'), # For luaunpanic_amalgamation.c
+         File::Spec->catdir($EXTRACT_DIR, 'marpaESLIFLua', 'include'), # For marpaESLFLua.h
+         File::Spec->catdir($EXTRACT_DIR, 'marpaESLIFLua', 'src'), # For marpaESLFLua.c
+         File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericStack', 'include'),
+         File::Spec->catdir($EXTRACT_DIR, 'genericHash', 'include'),
+         File::Spec->catdir($outdir, 'include')
+        );
+
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => \@include_dirs,
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_libiconv {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($EXTRACT_DIR, 'tconv', '3rdparty', 'tar', 'libiconv-1.17.tar.gz');
+    $tar->read($input);
+    my $outdir = $EXTRACT_DIR; # libiconv-1.17 is part of the tar
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    $outdir = File::Spec->catdir($outdir, 'libiconv-1.17');
+    my $config_h_in = File::Spec->catfile($outdir, 'config.h.in');
+    my $config_h_in_cmake = File::Spec->catfile($outdir, 'config.h.in.cmake');
+    print "Generating $config_h_in_cmake\n";
+    open(my $config_h_in_fd, '<', $config_h_in) || die "Cannot open $config_h_in, $!";
+    open(my $config_h_in_cmake_fd, '>', $config_h_in_cmake) || die "Cannot open $config_h_in_cmake, $!";
+    while (defined(my $line = <$config_h_in_fd>)) {
+        foreach my $_need_replacement ('ICONV_CONST') {
+            $line =~ s/^\s*#\s*undef[ \t]+${_need_replacement}/#cmakedefine ${_need_replacement} \@${_need_replacement}\@/;
+        }
+        foreach my $_need_boolean ('HAVE_WCRTOMB', 'HAVE_MBRTOWC', 'ENABLE_EXTRA', 'WORDS_LITTLEENDIAN') {
+            $line =~ s/^\s*#\s*undef[ \t]+${_need_boolean}/#cmakedefine01 ${_need_boolean}/;
+        }
+        $line =~ s/^\s*#\s*undef[ \t]+HAVE_([a-zA-Z0-9_]+)/#cmakedefine01 HAVE_$1/;
+        $line =~ s/^\s*#\s*undef/#cmakedefine/;
+        #
+        # Skip anything with DLL_VARIABLE, ICONV_CONST
+        #
+        if ($line =~ /DLL_VARIABLE/) {
+            next;
+        }
+        if ($line =~ /ICONV_CONST/) {
+            next;
+        }
+        print $config_h_in_cmake_fd $line;
+    }
+    #print $config_h_in_cmake_fd "#define DLL_VARIABLE\n";
+    #print $config_h_in_cmake_fd "#define ICONV_CONST\n";
+    close($config_h_in_cmake_fd) || warn "Cannot close $config_h_in_cmake, $!";
+    close($config_h_in_fd) || warn "Cannot close $config_h_in, $!";
+
+    my $config_h = File::Spec->catfile($outdir, 'config.h');
+    configure_file($ac, $config_h_in_cmake, $config_h);
+
+    my $iconv_h_in = File::Spec->catfile($outdir, 'include', 'iconv.h.in');
+    my $iconv_h_in_cmake = File::Spec->catfile($outdir, 'include', 'iconv.h.in.cmake');
+    print "Generating $iconv_h_in_cmake\n";
+    open(my $iconv_h_in_fd, '<', $iconv_h_in) || die "Cannot open $iconv_h_in, $!";
+    open(my $iconv_h_in_cmake_fd, '>', $iconv_h_in_cmake) || die "Cannot open $iconv_h_in_cmake, $!";
+    while (defined(my $line = <$iconv_h_in_fd>)) {
+        $line =~ s/#define _LIBICONV_H/#define _LIBICONV_H\n#include <libiconv\/export.h>\n/;
+        $line =~ s/^\s*extern[ \t]+([a-zA-Z_])/extern libiconv_EXPORT $1/;
+        $line =~ s/LIBICONV_DLL_EXPORTED/libiconv_EXPORT/;
+        $line =~ s/\@EILSEQ\@/ENOENT/;
+        $line =~ s/\@DLL_VARIABLE\@/libiconv_EXPORT/;
+        $line =~ s/\@([^@]+)\@/$1/;
+        print $iconv_h_in_cmake_fd $line;
+    }
+    close($iconv_h_in_cmake_fd) || warn "Cannot close $iconv_h_in_cmake, $!";
+    close($iconv_h_in_fd) || warn "Cannot close $iconv_h_in, $!";
+    
+    my $iconv_h = File::Spec->catfile($outdir, 'include', 'iconv.h');
+    configure_file($ac, $iconv_h_in_cmake, $iconv_h);
+
+    my $localcharset_h_in = File::Spec->catfile($outdir, 'libcharset', 'include', 'localcharset.h.in');
+    my $localcharset_h = File::Spec->catfile($outdir, 'libcharset', 'include', 'localcharset.h');
+    configure_file($ac, $localcharset_h_in, $localcharset_h);
+
+    my @extra_compiler_flags;
+    push(@extra_compiler_flags, "-DNO_I18N=1");
+    push(@extra_compiler_flags, "-DENABLE_NLS=0");
+    push(@extra_compiler_flags, "-DHAVE_WCHAR_T=" . ((exists($sizeof{'WCHAR_T'}) && $sizeof{'WCHAR_T'}) ? 1 : 0));
+    push(@extra_compiler_flags, "-DO_BINARY=" . ($have__O_BINARY ? 1 : 0));
+    push(@extra_compiler_flags, "-DHAVE_SETLOCALE=1") if (exists($HAVE_HEADERS{'locale.h'}) && $HAVE_HEADERS{'locale.h'});
+    push(@extra_compiler_flags, "-DHAVE_DECL_GETC_UNLOCKED=1") if ($have_getc_unlocked);
+    push(@extra_compiler_flags, "-DWORDS_LITTLEENDIAN=" . ($is_big_endian ? 0 : 1));
+    push(@extra_compiler_flags, "-DENABLE_EXTRA=1");
+    push(@extra_compiler_flags, "-DHAVE_WCRTOMB=" . ($have_wcrtomb ? 1 : 0));
+    push(@extra_compiler_flags, "-DHAVE_MBRTOWC=" . ($have_mbrtowc ? 1 : 0));
+    push(@extra_compiler_flags, "-DUSE_MBSTATE_T=" . (($have_wcrtomb && $have_mbrtowc) ? 1 : 0));
+    push(@extra_compiler_flags, "-DBROKEN_WCHAR_H=" . ($broken_wchar ? 1 : 0));
+    push(@extra_compiler_flags, "-DICONV_CONST=");
+    push(@extra_compiler_flags, "-DDLL_VARIABLE=");
+
+    if ($ENV{CC} =~ /\bcl\b/) {
+        #
+        # Too much noise with cl
+        #
+        push(@extra_compiler_flags, '/wd4311');
+    }
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @sources = (
+        File::Spec->catfile($outdir, 'libcharset', 'lib', 'localcharset.c'),
+        File::Spec->catfile($outdir, 'lib', 'relocatable.c'),
+        File::Spec->catfile($outdir, 'lib', 'iconv.c'),
+        );
+    generate_export_h($ac, $outdir, 'libiconv');
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => [
+                 File::Spec->catdir($outdir, 'libcharset', 'include'),
+                 File::Spec->catdir($outdir, 'include'),
+             ],
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_cchardet {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($EXTRACT_DIR, 'tconv', '3rdparty', 'tar', 'cchardet-1.0.0.tar.gz');
+    $tar->read($input);
+    my $outdir = $EXTRACT_DIR; # cchardet-1.0.0 is part of the tar
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    $outdir = File::Spec->catdir($outdir, 'cchardet-1.0.0');
+    my $nspr_emu_dir = File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect', 'nspr-emu');
+    print "Suppress directory $nspr_emu_dir\n";
+    remove_tree($nspr_emu_dir, { safe => 1 });
+    print "Created directory $nspr_emu_dir\n";
+    make_path($nspr_emu_dir);
+    my $nsDebug_h = File::Spec->catdir($nspr_emu_dir, 'nsDebug.h');
+    print "Creating $nsDebug_h\n";
+    open(my $nsDebug_h_fd, '>', $nsDebug_h) || die "Cannot open $nsDebug_h, $!";
+    print $nsDebug_h_fd <<NSDEBUG_H;
+#ifndef NSDEBUG_H
+#define NSDEBUG_H
+
+#endif /* NSDEBUG_H */
+NSDEBUG_H
+    close($nsDebug_h_fd) || warn "Cannot close $nsDebug_h, $!";
+    my $prmem_h = File::Spec->catdir($nspr_emu_dir, 'prmem.h');
+    print "Creating $prmem_h\n";
+    open(my $prmem_h_fd, '>', $prmem_h) || die "Cannot open $prmem_h, $!";
+    print $prmem_h_fd <<PRMEM_H;
+#ifndef PRMEM_H
+#define PRMEM_H
+
+/* Technically, this is the same as the original prmem.h */
+
+#include "nscore.h"
+
+PR_BEGIN_EXTERN_C
+#include <stdlib.h>
+PR_END_EXTERN_C
+
+#define PR_Malloc  malloc
+#define PR_Calloc  calloc
+#define PR_Realloc realloc
+#define PR_Free    free
+
+#define PR_MALLOC(_bytes) (PR_Malloc((_bytes)))
+#define PR_NEW(_struct) ((_struct *) PR_MALLOC(sizeof(_struct)))
+#define PR_REALLOC(_ptr, _size) (PR_Realloc((_ptr), (_size)))
+#define PR_CALLOC(_size) (PR_Calloc(1, (_size)))
+#define PR_NEWZAP(_struct) ((_struct*)PR_Calloc(1, sizeof(_struct)))
+#define PR_DELETE(_ptr) { PR_Free(_ptr); (_ptr) = NULL; }
+#define PR_FREEIF(_ptr) if (_ptr) PR_DELETE(_ptr)
+
+#endif /* PRMEM_H */
+PRMEM_H
+    close($prmem_h_fd) || warn "Cannot close $prmem_h, $!";
+    my $nscore_h = File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect', 'nscore.h');
+    print "Removing $nscore_h\n";
+    unlink($nscore_h);
+    configure_file($ac, File::Spec->catfile($EXTRACT_DIR, 'tconv', 'include', 'nscore.h.in'), $nscore_h);
+    my @sources = ();
+    find({ wanted => sub { push(@sources, $_) if ($_ =~ /\.cpp$/) }, no_chdir => 1 }, File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect', 'mozilla', 'extensions', 'universalchardet', 'src', 'base'));
+    push(@sources, File::Spec->catfile($outdir, 'src', 'ext', 'libcharsetdetect', 'charsetdetect.cpp'));
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @include_dirs = (
+        File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect', 'mozilla', 'extensions', 'universalchardet', 'src', 'base'),
+        File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect', 'nspr-emu'),
+        File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect'),
+        );
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => \@include_dirs,
+             'C++' => 1
+            );
+    }
+}
+
+sub process_pcre2 {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($EXTRACT_DIR, 'marpaESLIF', '3rdparty', 'tar', 'pcre2-10.42-patched.tar.gz');
+    $tar->read($input);
+    my $outdir = $EXTRACT_DIR; # pcre2-10.42 is part of the tar
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    $outdir = File::Spec->catfile($outdir, 'pcre2-10.42');
+    configure_file
+        (
+         $ac,
+         File::Spec->catfile($outdir, 'config-cmake.h.in'),
+         File::Spec->catfile($outdir, 'src', 'config.h')
+        );
+
+    my $pcre2_h_in = File::Spec->catfile($outdir, 'src', 'pcre2.h.in');
+    my $pcre2_h = File::Spec->catfile($outdir, 'src', 'pcre2.h');
+    print "Generating $pcre2_h\n";
+    copy($pcre2_h_in, $pcre2_h);
+    open(my $fh, '<', $pcre2_h) || die "Cannot open $pcre2_h, $!";
+    my $content = do { local $/; <$fh> };
+    close($fh) || warn "Cannot close $pcre2_h, $!";
+    $content =~ s/\@PCRE2_MAJOR\@/10/g;
+    $content =~ s/\@PCRE2_MINOR\@/42/g;
+    $content =~ s/\@PCRE2_PRERELEASE\@//g;
+    $content =~ s/\@PCRE2_DATE\@/2016-07-29/g;
+    open($fh, '>', $pcre2_h) || die "Cannot open $pcre2_h, $!";
+    print $fh $content;
+    close($fh) || warn "Cannot close $pcre2_h, $!";
+
+    my $b = get_cbuilder();
+    my @include_dirs = ( File::Spec->catfile($outdir, 'src') );
+    copy(File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c.dist'), File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c'));
+    my @sources =
+        (
+         File::Spec->catfile($outdir, 'src', 'pcre2_auto_possess.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_compile.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_config.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_context.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_convert.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_dfa_match.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_error.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_extuni.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_find_bracket.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_jit_compile.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_maketables.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_match.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_match_data.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_newline.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_ord2utf.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_pattern_info.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_script_run.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_serialize.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_string_utils.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_study.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_substitute.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_substring.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_tables.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_ucd.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_valid_utf.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_xclass.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c')
+        );
+    my @extra_compiler_flags = ();
+    push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
+    push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
+    push(@extra_compiler_flags, "-DPCRE2_STATIC=1");
+    push(@extra_compiler_flags, "-DSUPPORT_JIT=1");
+    push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
+    #
+    # SUPPORT_UNICODE and EBCDIC are not compatible
+    #
+    if ($Config{ebcdic}) {
+        push(@extra_compiler_flags, '-DEBCDIC=1');
+    } else {
+        push(@extra_compiler_flags, '-DSUPPORT_UNICODE=1');
+    }
+    push(@extra_compiler_flags, '-DLINK_SIZE=2');
+    push(@extra_compiler_flags, '-DMATCH_LIMIT=10000000');
+    push(@extra_compiler_flags, '-DMATCH_LIMIT_DEPTH=10000000');
+    push(@extra_compiler_flags, '-DMATCH_LIMIT_RECURSION=10000000');
+    push(@extra_compiler_flags, '-DHEAP_LIMIT=20000000');
+    push(@extra_compiler_flags, '-DNEWLINE_DEFAULT=2');
+    push(@extra_compiler_flags, '-DPARENS_NEST_LIMIT=250');
+    push(@extra_compiler_flags, '-DPCRE2GREP_BUFSIZE=20480');
+    push(@extra_compiler_flags, '-DMAX_NAME_SIZE=32');
+    push(@extra_compiler_flags, '-DMAX_NAME_COUNT=10000');
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => \@include_dirs,
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+    }
+}
+
+sub process_luaunpanic {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'luaunpanic-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'luaunpanic');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    my $luaconf_h_in = File::Spec->catfile($outdir, 'include', 'luaunpanic','internal', 'luaconf.h.in');
+    my $luaconf_h = File::Spec->catfile($outdir, 'include', 'luaunpanic','lua', 'luaconf.h');
+    configure_file($ac, $luaconf_h_in, $luaconf_h);
+    my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
+    generate_export_h($ac, $outdir, $project);
+}
+
+sub process_marpaESLIFLua {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($TARBALLS_DIR, 'marpaesliflua-src.tar.gz');
+    $tar->read($input);
+    my $outdir = File::Spec->catdir($EXTRACT_DIR, 'marpaESLIFLua');
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
 }
 
 sub get_project_and_version {
@@ -2786,13 +3436,6 @@ sub get_project_and_version {
                 ($project, $version, $major, $minor, $patch) = ($1, "$2.$3.$4", $2, $3, $4);
                 my $PROJECT = uc($project);
                 print "... Project $project, version $version\n";
-
-                foreach my $flag ("${PROJECT}_VERSION_MAJOR=$major", "${PROJECT}_VERSION_MINOR=$minor", "${PROJECT}_VERSION_PATCH=$patch", "${PROJECT}_VERSION=\\\"$version\\\"") {
-                    $ac->msg_notice("Append $flag to compile flags");
-                    $ENV{CFLAGS} .= " -D$flag";
-                    $ENV{CXXFLAGS} .= " -D$flag";
-                }
-
                 last;
             }
         }
@@ -2821,4 +3464,45 @@ sub generate_export_h {
 #endif /* ${project}_EXPORT_H */
 EXPORT
     close($fh) || "Cannot close $export, $!";
+}
+
+sub check_big_endian {
+    my ($ac) = @_;
+
+    my $rc;
+    $ac->msg_checking('big endianness');
+    my $prologue = <<PROLOGUE;
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+
+const int i = 1;
+#define is_bigendian() ( (*(char*)&i) == 0 )
+PROLOGUE
+    my $body = <<BODY;
+  exit(is_bigendian() ? 0 : 1);
+BODY
+    my $program = $ac->lang_build_program($prologue, $body);
+    #
+    # We do not accept any compile, link or run error
+    #
+    if (try_run($program, { compile_error_is_fatal => 1, link_error_is_fatal => 1, run_error_is_fatal => 1 })) {
+        $ac->msg_result("yes");
+        $rc = 1;
+    } else {
+        $ac->msg_result("no");
+        $rc = 0;
+    }
+}
+
+#
+# A specialized ExtUtils::CBuilder new wrapper, that gets optimize and c99 flags
+#
+sub get_cbuilder {
+    my %EXTUTILS_BUILDER_CONFIG = ();
+    if ($optimize) {
+        $EXTUTILS_BUILDER_CONFIG{optimize} = $optimize;
+    }
+
+    return ExtUtils::CBuilder->new(config => \%EXTUTILS_BUILDER_CONFIG);
 }
