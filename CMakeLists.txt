@@ -151,10 +151,24 @@ if(INSTALL_DEPENDENCIES)
       Math::BigFloat
       Math::BigInt
       Safe::Isa
-      Test::Deep::NoTest
-      Test::Deep
-      Test::More
+      Test::CPAN::Changes
+      Test::CPAN::Meta
+      Test::CPAN::Meta::JSON
+      Test::Deep = 1.128
+      Test::EOL
+      Test::Kwalitee
+      Test::MinimumVersion
+      Test::Mojibake
+      Test::More = 1.3
       Test::More::UTF8
+      Test::NoTabs
+      Test::Perl::Critic
+      Test::Pod
+      Test::Pod::Coverage
+      Test::Pod::LinkCheck
+      Test::Portability::Files
+      Test::Synopsis
+      Test::Version
       Try::Tiny
     )
     message(STATUS "Checking for ${_package}")
