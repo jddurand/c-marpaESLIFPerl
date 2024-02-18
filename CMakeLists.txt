@@ -154,12 +154,12 @@ if(INSTALL_DEPENDENCIES)
       Test::CPAN::Changes
       Test::CPAN::Meta
       Test::CPAN::Meta::JSON
-      Test::Deep = 1.128
+      Test::Deep
       Test::EOL
       Test::Kwalitee
       Test::MinimumVersion
       Test::Mojibake
-      Test::More = 1.3
+      Test::More
       Test::More::UTF8
       Test::NoTabs
       Test::Perl::Critic
