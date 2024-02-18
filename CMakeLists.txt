@@ -137,6 +137,7 @@ if(INSTALL_DEPENDENCIES)
       File::Spec
       File::Temp
       File::Which
+      Probe::Perl
       Perl::OSType
       Try::Tiny
       #
