@@ -476,7 +476,7 @@ if($has_Werror) {
     if ($has_Werror_attributes && ($is_gnu || $is_clang)) {
         foreach my $attribute (qw/alias aligned alloc_size always_inline artificial cold const constructor_priority constructor deprecated destructor dllexport dllimport error externally_visible fallthrough flatten format gnu_format format_arg gnu_inline hot ifunc leaf malloc noclone noinline nonnull noreturn nothrow optimize pure sentinel sentinel_position returns_nonnull unused used visibility warning warn_unused_result weak weakref/) {
             my $attribute_toupper = uc($attribute);
-            check_compiler_function_attribute($ac, "C_GCC_FUNC_ATTRIBUTE_${attribute_toupper}", 1, $attribute, { extra_compiler_flags => "-Werror=attributes -DTEST_GCC_FUNC_ATTRIBUTE_${attribute_toupper}=1" });
+            check_compiler_function_attribute($ac, "C_GCC_FUNC_ATTRIBUTE_${attribute_toupper}", "__attribute__((${attribute}))", $attribute, { extra_compiler_flags => "-Werror=attributes -DTEST_GCC_FUNC_ATTRIBUTE_${attribute_toupper}=1" });
         }
     }
 }
@@ -599,6 +599,7 @@ PROLOGUE
     $sizeof{$WHAT} = $ac->check_sizeof_type($what, { prologue => $prologue });
     if ($sizeof{$WHAT}) {
         $ac->define_var("HAVE_SIZEOF_${WHAT}", 1);
+        $ac->define_var("SIZEOF_${WHAT}", $sizeof{$WHAT});
     }
 }
 my %_MYTYPEMINMAX = ();
@@ -1428,7 +1429,7 @@ BODY
 sub check_CHAR_BIT {
     my ($ac) = @_;
 
-    my $char_bit;
+    my $char_bit = 0;
 
     foreach my $value (qw/CHAR_BIT/) {
 	$ac->msg_checking($value);
@@ -1456,14 +1457,14 @@ BODY
             $char_bit = 8;
 	    $ac->msg_result("no - Assuming $char_bit");
 	}
-        #
-        # It is impossible to have less than 8
-        #
-        if ($char_bit < 8) {
-            die "CHAR_BIT size is $char_bit < 8";
-        }
-        $ac->define_var("C_CHAR_BIT", $char_bit);
     }
+    #
+    # It is impossible to have less than 8
+    #
+    if ($char_bit < 8) {
+        die "CHAR_BIT size is $char_bit < 8";
+    }
+    $ac->define_var("C_CHAR_BIT", $char_bit);
 
     return $char_bit;
 }
@@ -2777,8 +2778,8 @@ sub process_genericLogger {
     #
     my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
     my $PROJECT = uc($project);
-    my @extra_compiler_flags = ("-D${PROJECT}_NTRACE", "-D${PROJECT}_VERSION_MAJOR=$major", "-D${PROJECT}_VERSION_MINOR=$minor", "-D${PROJECT}_VERSION_PATCH=$patch", "-D${PROJECT}_VERSION=\"$version\"");
-    generate_export_h($ac, $outdir, $project);
+    my @extra_compiler_flags = ("-D${PROJECT}_NTRACE");
+    generate_export_h($ac, $outdir, $project, $version, $major, $minor, $patch);
     #
     # Add include directory to compile flags
     #
@@ -2840,13 +2841,9 @@ sub process_tconv {
         '-DTCONV_HAVE_ICONV=1',
         '-DICONV_CAN_TRANSLIT=1',
         '-DICONV_CAN_IGNORE=1',
-        "-D${PROJECT}_NTRACE",
-        "-D${PROJECT}_VERSION_MAJOR=$major",
-        "-D${PROJECT}_VERSION_MINOR=$minor",
-        "-D${PROJECT}_VERSION_PATCH=$patch",
-        "-D${PROJECT}_VERSION=\"$version\""
+        "-D${PROJECT}_NTRACE"
         );
-    generate_export_h($ac, $outdir, $project);
+    generate_export_h($ac, $outdir, $project, $version, $major, $minor, $patch);
     #
     # Configure
     #
@@ -2902,15 +2899,11 @@ sub process_marpaWrapper {
     my $PROJECT = uc($project);
     my @extra_compiler_flags = (
         "-D${PROJECT}_NTRACE",
-        "-D${PROJECT}_VERSION_MAJOR=$major",
-        "-D${PROJECT}_VERSION_MINOR=$minor",
-        "-D${PROJECT}_VERSION_PATCH=$patch",
-        "-D${PROJECT}_VERSION=\"$version\"",
         "-DMARPA_LIB_MAJOR_VERSION=MARPA_MAJOR_VERSION",
         "-DMARPA_LIB_MINOR_VERSION=MARPA_MINOR_VERSION",
         "-DMARPA_LIB_MICRO_VERSION=MARPA_MICRO_VERSION",
         );
-    generate_export_h($ac, $outdir, $project);
+    generate_export_h($ac, $outdir, $project, $version, $major, $minor, $patch);
     #
     # Configure
     #
@@ -2986,20 +2979,12 @@ sub process_marpaESLIF {
     $ac->define_var("WORDS_BIGENDIAN", 1) if $is_big_endian;
     my @extra_compiler_flags = ();
     push(@extra_compiler_flags, "-D${PROJECT}_NTRACE");
-    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_MAJOR=$major");
-    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_MINOR=$minor");
-    push(@extra_compiler_flags, "-D${PROJECT}_VERSION_PATCH=$patch");
-    push(@extra_compiler_flags, "-D${PROJECT}_VERSION=\"$version\"");
     if ($ENV{CC} =~ /\bcl\b/) {
         push(@extra_compiler_flags, "-DLUA_DL_DLL=1");
     } else {
         push(@extra_compiler_flags, "-DLUA_USE_DLOPEN=1");
         push(@extra_compiler_flags, "-DLUA_USE_POSIX=1");
     }
-    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_MAJOR=$major");
-    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_MINOR=$minor");
-    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION_PATCH=$patch");
-    push(@extra_compiler_flags, "-DMARPAESLIFLUA_VERSION=\"$version\"");
     push(@extra_compiler_flags, "-DMARPAESLIFLUA_EMBEDDED=1");
     push(@extra_compiler_flags, "-DMARPAESLIF_BUFSIZ=1048576");
     push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
@@ -3031,7 +3016,13 @@ sub process_marpaESLIF {
         $ac->msg_notice("No exact map found in lua for perl double type \"$nvtype\": use long double for lua_Number");
         push(@extra_compiler_flags, "-DLUA_FLOAT_TYPE=3");
     }
-    generate_export_h($ac, $outdir, $project);
+    my $extra_defines = <<EXTRA_DEFINES;
+#define MARPAESLIFLUA_VERSION_MAJOR $major
+#define MARPAESLIFLUA_VERSION_MINOR $minor
+#define MARPAESLIFLUA_VERSION_PATCH $patch
+#define MARPAESLIFLUA_VERSION "$version"
+EXTRA_DEFINES
+    generate_export_h($ac, $outdir, $project, $version, $major, $minor, $patch, $extra_defines);
     #
     # Configure
     #
@@ -3446,17 +3437,30 @@ sub get_project_and_version {
 }
 
 sub generate_export_h {
-    my ($ac, $dir, $project) = @_;
+    my ($ac, $dir, $project, $version, $major, $minor, $patch, $extra_defines) = @_;
 
     my $export = File::Spec->catfile($dir, 'include', $project, 'export.h');
     make_path(dirname($export));
     print "Generating $export\n";
     my $PROJECT = uc($project);
+    #
+    # There is a problem with quoting version, so we put that in export.h whenever possible
+    #
+    my $DEFINE_VERSION = (defined($version)) ? "#define ${PROJECT}_VERSION \"$version\"" : "";
+    my $DEFINE_MAJOR = (defined($major)) ? "#define ${PROJECT}_VERSION_MAJOR $major" : "";
+    my $DEFINE_MINOR = (defined($minor)) ? "#define ${PROJECT}_VERSION_MINOR $minor" : "";
+    my $DEFINE_PATCH = (defined($patch)) ? "#define ${PROJECT}_VERSION_PATCH $patch" : "";
+    $extra_defines //= '';
     open(my $fh, '>', $export) || die "Cannot open $export, $!";
     print $fh <<EXPORT;
 #ifndef ${project}_EXPORT_H
 #define ${project}_EXPORT_H
 
+${DEFINE_MAJOR}
+${DEFINE_MINOR}
+${DEFINE_PATCH}
+${DEFINE_VERSION}
+${extra_defines}
 /* We enforce static mode */
 #define ${project}_EXPORT
 #define ${PROJECT}_NO_EXPORT
