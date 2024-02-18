@@ -181,9 +181,19 @@ execute_process(COMMAND ${CMAKE_COMMAND} -E make_directory ${tarballs-destdir})
 foreach(dep IN LISTS deps)
   cmake_path(GET dep FILENAME depname_src)
   #
-  # Skip things that are bundled
+  # Skip things that are not need or bundled
   #
-  if((depname_src STREQUAL libiconv) OR (pcre2_src STREQUAL libiconv))
+  if(
+      (depname_src STREQUAL marpaeslifperl-src) # Ourself...
+      OR
+      (depname_src STREQUAL cmake-helpers-src)  # Not needed
+      OR
+      (depname_src STREQUAL libiconv-src)       # Bundled in tconv
+      OR
+      (depname_src STREQUAL optparse-src)       # Not needed
+      OR
+      (depname_src STREQUAL pcre2-src)          # Bundled in marpaESLIF
+    )
     continue()
   endif()
   set(dep-tgz ${tarballs-destdir}/${depname_src}.tar.gz)
