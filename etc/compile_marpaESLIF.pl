@@ -2976,7 +2976,6 @@ sub process_marpaESLIF {
     my $PROJECT = uc($project);
     $ac->define_var("MARPAESLIF_UINT32_T", "CMAKE_HELPERS_UINT32_TYPEDEF");
     $ac->define_var("MARPAESLIF_UINT64_T", "CMAKE_HELPERS_UINT64_TYPEDEF");
-    $ac->define_var("WORDS_BIGENDIAN", 1) if $is_big_endian;
     my @extra_compiler_flags = ();
     push(@extra_compiler_flags, "-D${PROJECT}_NTRACE");
     if ($ENV{CC} =~ /\bcl\b/) {
@@ -3491,6 +3490,7 @@ BODY
     # We do not accept any compile, link or run error
     #
     if (try_run($program, { compile_error_is_fatal => 1, link_error_is_fatal => 1, run_error_is_fatal => 1 })) {
+        $ac->define_var("WORDS_BIGENDIAN", 1);
         $ac->msg_result("yes");
         $rc = 1;
     } else {
