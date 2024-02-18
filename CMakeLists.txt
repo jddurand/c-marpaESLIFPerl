@@ -123,7 +123,6 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::DynamicPrereqs
       Pod::Weaver::PluginBundle::RJBS
       Dist::Zilla::Plugin::Git::GatherDir
-      Dist::Zilla::Plugin::AlienBuild
       Dist::Zilla::Plugin::Test::Pod::Coverage::Configurable
       #
       # Non CORE Build requirements
