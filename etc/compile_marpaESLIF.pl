@@ -180,6 +180,9 @@ if ($have_cppguess && ! $sunc) {
                 push(@OTHERLDFLAGS, $extra_ldflags_guess)
             }
         }
+    }
+    catch {
+        warn "caught error: $_"; # not $@
     };
 }
 
@@ -922,8 +925,43 @@ process_genericHash($ac);
 process_genericSparseArray($ac);
 process_marpaWrapper($ac);
 process_marpaESLIF($ac);
+#
+# Write LDFLAGS and OTHERLDFLAGS to OTHERLDFLAGS.txt
+#
+my $otherldflags = 'OTHERLDFLAGS.txt';
+open(my $otherldflags_fd, '>', $otherldflags) || die "Cannot open $otherldflags, $!";
+foreach (@OTHERLDFLAGS) {
+    print $otherldflags_fd "$_\n";
+}
+print $otherldflags_fd "$ENV{LDFLAGS}\n";
+close($otherldflags_fd) || warn "Cannot close $otherldflags, $!";
+
+#
+# Write CFLAGS to CFLAGS.txt
+#
+my $cflags = 'CFLAGS.txt';
+open(my $cflags_fd, '>', $cflags) || die "Cannot open $cflags, $!";
+print $cflags_fd "$ENV{CFLAGS}\n";
+close($cflags_fd) || warn "Cannot close $cflags, $!";
 
 exit(EXIT_SUCCESS);
+
+sub guess_compiler {
+  my ($ac) = @_;
+
+  my $guesser = ExtUtils::CppGuess->new(cc => $ENV{CC});
+  #
+  # We work quite like Module::Build in the sense that we are appending
+  # flags.
+  #
+  my %module_build_options = $guesser->module_build_options;
+  my $cxx_guess            = $module_build_options{config}->{cc} // '';
+  my $extra_cxxflags_guess = $module_build_options{extra_compiler_flags} // '';
+  my $extra_ldflags_guess  = $module_build_options{extra_linker_flags} // '';
+  $ac->msg_notice("ExtUtils::CppGuess says \$cxx_guess=$cxx_guess, \$extra_cxxflags_guess=$extra_cxxflags_guess, \$extra_ldflags_guess=$extra_ldflags_guess");
+
+  return ($cxx_guess, $extra_cxxflags_guess, $extra_ldflags_guess);
+}
 
 sub try_compile {
     no warnings 'once';

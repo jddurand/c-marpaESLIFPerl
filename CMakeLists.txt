@@ -126,40 +126,36 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::AlienBuild
       Dist::Zilla::Plugin::Test::Pod::Coverage::Configurable
       #
-      # We have an alienfile that is a modified version of Alien::cmake3
-      # Let's pull in Alien::cmake3 and its explicit dependencies
-      #
-      Alien::cmake3
-      Alien::Build
-      Alien::Build::Plugin::Build::Autoconf
-      # Archive::Tar CORE
+      # Non CORE Build requirements
+      # ===========================
       Config::AutoConf
-      Env::Path
+      Cwd
       ExtUtils::CBuilder
       ExtUtils::Constant
-      # File::Basename # CORE
+      # ExtUtils::CppGuess does not install everywhere, we provide it and do a try/catch
       File::chdir
-      File::Find
       File::Path
-      File::Which
       File::Spec
-      Log::Any
-      Log::Any::Adapter
-      Path::Tiny
-      Pod::Coverage::TrustPod
-      Probe::Perl
-      Test::CPAN::Meta
-      Test::Deep
-      Test::EOL
-      Test::Kwalitee
-      Test::More
-      Test::More::UTF8
-      Test::NoTabs
-      Test::Pod::Coverage
+      File::Temp
+      File::Which
+      Perl::OSType
       Try::Tiny
       #
-      # We create ourself tarballs of marpaESLIF and all its dependencies
-      #
+      # lib and t requirements
+      # ======================
+      Carp
+      Data::Dumper
+      Encode
+      Log::Any::Adapter
+      Log::Any
+      Math::BigFloat
+      Math::BigInt
+      Safe::Isa
+      Test::Deep::NoTest
+      Test::Deep
+      Test::More
+      Test::More::UTF8
+      Try::Tiny
     )
     message(STATUS "Checking for ${_package}")
     execute_process(
