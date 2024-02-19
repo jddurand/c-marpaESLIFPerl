@@ -45,7 +45,7 @@ jobs:
       run: perl etc/init_pause.pl JDDPAUSE
 
     - name: Configure
-      run: cmake -S . -B ../build_folder -G "NMake Makefiles -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DINSTALL_DEPENDENCIES=ON
+      run: cmake -S . -B ../build_folder -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DINSTALL_DEPENDENCIES=ON
 
     - name: Build
       run: cmake --build ../build_folder
