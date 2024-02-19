@@ -29,13 +29,16 @@ jobs:
     - name: Set up perl
       uses: shogo82148/actions-setup-perl@v1
 
-    - name: Install perl's File::HomeDir and create ~/.pause
-      run: |
-        cpanm -n File::HomeDir
-        perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
-        perl -MFile::HomeDir -e 'open(my $fd, ">", File::Spec->catfile(File::HomeDir->my_home, ".pause")); print $fd "JDDPAUSE\nWellWell\n"; close($fd) || warn $!;'
+    - name: Install perl's File::HomeDir
+      run: cpanm -n File::HomeDir
 
-    - name: ~/.pause content
+    - name: Print home as per perl
+      run: perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
+
+    - name: Create ~/.pause
+      run: perl -MFile::HomeDir -e 'open(my $fd, ">", File::Spec->catfile(File::HomeDir->my_home, ".pause")); print $fd "JDDPAUSE\nWellWell\n"; close($fd) || warn $!;'
+
+    - name: Verify ~/.pause
       run: perl -MFile::HomeDir -e 'open(my $fd, "<", File::Spec->catfile(File::HomeDir->my_home, ".pause")); my $content = do { local $/; <$fd> }; print $content; close($fd) || warn $!;'
 
     - name: Configure
