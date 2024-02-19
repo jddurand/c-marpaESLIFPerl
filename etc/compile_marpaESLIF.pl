@@ -3516,18 +3516,24 @@ sub check_big_endian {
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
+#ifdef HAVE_STDIO_H
+#include <stdio.h>
+#endif
 
 const int i = 1;
 #define is_bigendian() ( (*(char*)&i) == 0 )
 PROLOGUE
     my $body = <<BODY;
-  exit(is_bigendian() ? 0 : 1);
+  fprintf(stdout, "%d", is_bigendian() ? 1 : 0);
+  exit(0);
 BODY
     my $program = $ac->lang_build_program($prologue, $body);
     #
     # We do not accept any compile, link or run error
     #
-    if (try_run($program, { compile_error_is_fatal => 1, link_error_is_fatal => 1, run_error_is_fatal => 1 })) {
+    my $is_bigendian;
+    try_output($program, \$is_bigendian, { compile_error_is_fatal => 1, link_error_is_fatal => 1, run_error_is_fatal => 1 });
+    if($is_bigendian)
         $ac->define_var("WORDS_BIGENDIAN", 1);
         $ac->msg_result("yes");
         $rc = 1;
