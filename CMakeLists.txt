@@ -105,7 +105,6 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::MojibakeTests
       Dist::Zilla::Plugin::Test::NoTabs
       Dist::Zilla::Plugin::PodCoverageTests
-      Dist::Zilla::Plugin::Test::Pod::LinkCheck
       Dist::Zilla::Plugin::Test::Portability
       Dist::Zilla::Plugin::Test::Synopsis
       Dist::Zilla::Plugin::Test::Version
@@ -166,7 +165,6 @@ if(INSTALL_DEPENDENCIES)
       Test::Perl::Critic
       Test::Pod
       Test::Pod::Coverage
-      Test::Pod::LinkCheck
       Test::Portability::Files
       Test::Synopsis
       Test::Version
