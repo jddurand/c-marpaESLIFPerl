@@ -40,8 +40,8 @@ jobs:
 
     - name: Set PAUSE identity
       run: |
-        echo user JDDPAUSE > ${{steps.getpausepath.outputs.pausepath}}
-        echo password WellWell >> ${{steps.getpausepath.outputs.pausepath}}
+        echo user JDDPAUSE > "${{steps.getpausepath.outputs.pausepath}}"
+        echo password WellWell >> "${{steps.getpausepath.outputs.pausepath}}"
 
     - name: Configure
       run: cmake -S . -B ../build_folder -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G "Unix Makefiles" -DINSTALL_DEPENDENCIES=ON

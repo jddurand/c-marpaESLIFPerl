@@ -35,14 +35,16 @@ jobs:
 
     - name: Get .pause path as per perl
       id: getpausepath
+      shell: cmd
       run: |
         perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
         perl -MFile::HomeDir -e 'print "pausepath=" . File::Spec->catfile(File::HomeDir->my_home, ".pause") . "\n"' >> $GITHUB_OUTPUT
 
     - name: Set PAUSE identity
+      shell: cmd
       run: |
-        echo user JDDPAUSE > ${{steps.getpausepath.outputs.pausepath}}
-        echo password WellWell >> ${{steps.getpausepath.outputs.pausepath}}
+        echo user JDDPAUSE > "${{steps.getpausepath.outputs.pausepath}}"
+        echo password WellWell >> "${{steps.getpausepath.outputs.pausepath}}"
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
