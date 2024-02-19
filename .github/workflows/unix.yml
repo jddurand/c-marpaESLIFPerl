@@ -33,7 +33,7 @@ jobs:
       run: cpanm -n File::HomeDir
 
     - name: Get HomeDir as per perl
-      run: perl -MFile::HomeDir -e "print \"Home as per File::HomeDir : \" . File::HomeDir->my_home . \"\\n\";"
+      run: perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
       id: homedir
 
     - name: Set PAUSE identity
