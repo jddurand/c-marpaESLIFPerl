@@ -34,7 +34,7 @@ jobs:
       run: cpanm -n File::HomeDir
 
     - name: Initialize ~/.pause
-      run: perl etc/init_pause.pl JDDPAUSE HeyHeyComeOn
+      run: perl etc/init_pause.pl JDDPAUSE
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON

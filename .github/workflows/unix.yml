@@ -33,7 +33,7 @@ jobs:
       run: cpanm -n File::HomeDir
 
     - name: Initialize ~/.pause
-      run: perl etc/init_pause.pl JDDPAUSE HeyHeyComeOn
+      run: perl etc/init_pause.pl JDDPAUSE
 
     - name: Configure
       run: cmake -S . -B ../build_folder -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G "Unix Makefiles" -DINSTALL_DEPENDENCIES=ON
