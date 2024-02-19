@@ -943,16 +943,10 @@ if ($ENV{CC} =~ /\bcl\b/) {
 #
 # Extract and process tarballs in an order that we know in advance
 #
-# The order in which objects will be linked IS IMPORTANT. This is why
-# all objects are in the form objs/DDD_filename.o where DDD is incremented.
-# Objects are then collected in Makefile.PL and sorted in alphabetical order.
-#
-our $OBJI = 0;
-
 sub get_object_file {
     my ($source) = @_;
 
-    return File::Spec->catfile($OBJS_DIR, sprintf("%03d_%s.o", $OBJI++, basename($source)));
+    return File::Spec->catfile($OBJS_DIR, sprintf("%s.o", basename($source)));
 }
 
 process_genericLogger($ac);
@@ -2964,6 +2958,7 @@ sub process_tconv {
         );
     my @include_dirs = (
 	File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
+	File::Spec->catdir($EXTRACT_DIR, 'libiconv-1.17', 'include'),
 	File::Spec->catdir($EXTRACT_DIR, 'cchardet-1.0.0', 'src', 'ext', 'libcharsetdetect'),
 	File::Spec->catdir($outdir, 'include')
 	);
