@@ -33,13 +33,13 @@ jobs:
       run: cpanm -n File::HomeDir
 
     - name: Print home as per perl
-      run: perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
+      run: perl -e 'use File::HomeDir; print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
 
     - name: Create ~/.pause
-      run: perl -MFile::HomeDir -e 'open(my $fd, ">", File::Spec->catfile(File::HomeDir->my_home, ".pause")); print $fd "JDDPAUSE\nWellWell\n"; close($fd) || warn $!;'
+      run: perl -e 'use File::HomeDir; use File::Spec; my $pause = File::Spec->catfile(File::HomeDir->my_home, ".pause"); open(my $fd, ">", $pause) || die "Cannot open $pause, $!"; print $fd "JDDPAUSE\nWellWell\n"; close($fd) || warn "Cannot close $pause, $!";'
 
     - name: Verify ~/.pause
-      run: perl -MFile::HomeDir -e 'open(my $fd, "<", File::Spec->catfile(File::HomeDir->my_home, ".pause")); my $content = do { local $/; <$fd> }; print $content; close($fd) || warn $!;'
+      run: perl -e 'use File::HomeDir; use File::Spec; my $pause = File::Spec->catfile(File::HomeDir->my_home, ".pause"); open(my $fd, "<", $pause) || die "Cannot open $pause, $!"; my $content = do { local $/; <$fd> }; print $content; close($fd) || warn "Cannot close $pause, $!";'
 
     - name: Configure
       run: cmake -S . -B ../build_folder -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G "Unix Makefiles" -DINSTALL_DEPENDENCIES=ON
