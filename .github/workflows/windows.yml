@@ -31,20 +31,10 @@ jobs:
         distribution: strawberry
 
     - name: Install perl's File::HomeDir
-      shell: cmd
       run: cpanm -n File::HomeDir
 
-    - name: Print home as per perl
-      shell: cmd
-      run: perl -e "use File::HomeDir; print \"Home as per File::HomeDir is \" . File::HomeDir->my_home . \"\n\";"
-
-    - name: Create ~/.pause
-      shell: cmd
-      run: perl -e "use File::HomeDir; use File::Spec; my $pause = File::Spec->catfile(File::HomeDir->my_home, \".pause\"); print \"Creating $pause\n\"; open(my $fd, \">\", $pause) || die \"Cannot open $pause, $!\"; print $fd \"JDDPAUSE\nWellWell\n\"; close($fd) || warn \"Cannot close $pause, $!\";"
-
-    - name: Verify ~/.pause
-      shell: cmd
-      run: perl -e "use File::HomeDir; use File::Spec; my $pause = File::Spec->catfile(File::HomeDir->my_home, \".pause\"); print \"Reading $pause\n\"; open(my $fd, \"<\", $pause) || die \"Cannot open $pause, $!\"; my $content = do { local $/; <$fd> }; print $content; close($fd) || warn \"Cannot close $pause, $!\";"
+    - name: Initialize ~/.pause
+      run: perl etc/init_pause.pl JDDPAUSE HeyHeyComeOn
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
