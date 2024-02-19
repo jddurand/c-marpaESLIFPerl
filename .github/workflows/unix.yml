@@ -29,6 +29,9 @@ jobs:
     - name: Set up perl
       uses: shogo82148/actions-setup-perl@v1
 
+    - name: Print perl configuration
+      run: perl -e "use Config qw/myconfig/; print myconfig;"
+
     - name: Install perl's File::HomeDir
       run: cpanm -n File::HomeDir
 

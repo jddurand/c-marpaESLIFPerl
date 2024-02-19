@@ -67,6 +67,7 @@ install:
   - cmd: if not exist "C:\strawberry" cinst strawberryperl
   - cmd: set PATH=C:\strawberry\perl\bin;C:\strawberry\perl\site\bin;C:\strawberry\c\bin;%PATH%
   - perl -v
+  - perl -e "use Config qw/myconfig/; print myconfig;"
 #
 # Make sure we always have (a decent) CMake
 #
