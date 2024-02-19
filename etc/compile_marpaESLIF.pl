@@ -945,7 +945,7 @@ if ($ENV{CC} =~ /\bcl\b/) {
 #
 # The order in which objects will be linked IS IMPORTANT. This is why
 # all objects are in the form objs/DDD_filename.o where DDD is incremented.
-# Objects are then collected in Makefile.PL and sorted in reversed alphabetical order.
+# Objects are then collected in Makefile.PL and sorted in alphabetical order.
 #
 our $OBJI = 0;
 
