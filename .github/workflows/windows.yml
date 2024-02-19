@@ -41,8 +41,8 @@ jobs:
     - name: Set PAUSE identity
       shell: cmd
       run: |
-        echo user JDDPAUSE > ${{ steps.homedir.outputs.stdout }}
-        echo password WellWell >> ${{ steps.homedir.outputs.stdout }}
+        echo user JDDPAUSE > "${{steps.homedir.outputs.stdout}}"
+        echo password WellWell >> "${{steps.homedir.outputs.stdout}}"
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
