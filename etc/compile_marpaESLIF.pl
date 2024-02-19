@@ -194,10 +194,10 @@ if ($have_cppguess && ! $sunc) {
 RAISE_ERROR_IF_NOT_LIBCPP
 		    if (try_compile($check_libcpp, { 'C++' => 1 })) {
 			$ac->msg_result('-lc++');
-			$extra_ldflags_guess =~ s/\-l(?:c|stdc)++/-lc++/;
+			$extra_ldflags_guess =~ s/\-l(?:c|stdc)\+\+/-lc++/;
 		    } else {
 			$ac->msg_result('-lstdc++');
-			$extra_ldflags_guess =~ s/\-l(?:c|stdc)++/-lstdc++/;
+			$extra_ldflags_guess =~ s/\-l(?:c|stdc)\+\+/-lstdc++/;
 		    }
 		}
                 $ac->msg_notice("Pushing $extra_ldflags_guess to OTHERLDFLAGS");
