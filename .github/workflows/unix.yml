@@ -35,6 +35,9 @@ jobs:
         perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
         perl -MFile::HomeDir -e 'open(my $fd, ">", File::Spec->catfile(File::HomeDir->my_home, ".pause")); print $fd "JDDPAUSE\nWellWell\n"; close($fd) || warn $!;'
 
+    - name: ~/.pause content
+      run: perl -MFile::HomeDir -e 'open(my $fd, "<", File::Spec->catfile(File::HomeDir->my_home, ".pause")); my $content = do { local $/; <$fd> }; print $content; close($fd) || warn $!;'
+
     - name: Configure
       run: cmake -S . -B ../build_folder -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -G "Unix Makefiles" -DINSTALL_DEPENDENCIES=ON
 
