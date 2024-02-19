@@ -33,16 +33,16 @@ jobs:
     - name: Install perl's File::HomeDir
       run: cpanm -n File::HomeDir
 
-    - name: Get HomeDir as per perl
-      id: gethomedir
+    - name: Get .pause path as per perl
+      id: getpausepath
       run: |
         perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
-        perl -MFile::HomeDir -e 'print "homedir=" . File::HomeDir->my_home . "\n"' >> $GITHUB_OUTPUT
+        perl -MFile::HomeDir -e 'print "pausepath=" . File::Spec->catfile(File::HomeDir->my_home, ".pause") . "\n"' >> $GITHUB_OUTPUT
 
     - name: Set PAUSE identity
       run: |
-        echo user JDDPAUSE > "${{steps.gethomedir.outputs.homedir}}"
-        echo password WellWell >> "${{steps.homedir.outputs.homedir}}"
+        echo user JDDPAUSE > ${{steps.getpausepath.outputs.pausepath}}
+        echo password WellWell >> ${{steps.getpausepath.outputs.pausepath}}
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
