@@ -2350,7 +2350,7 @@ PERL_STATIC_INLINE short marpaESLIFPerl_importb(pTHX_ marpaESLIFPerl_importConte
     break;
   case MARPAESLIF_VALUE_TYPE_ARRAY:
     if ((marpaESLIFValueResultp->u.a.p != NULL) && (marpaESLIFValueResultp->u.a.sizel > 0)) {
-      svp = marpaESLIFPerl_arraycopyp(aTHX_ marpaESLIFValueResultp->u.a.p, (STRLEN) marpaESLIFValueResultp->u.a.sizel, arraycopyb);
+      svp = marpaESLIFPerl_arraycopyp(aTHX_ (char *) marpaESLIFValueResultp->u.a.p, (STRLEN) marpaESLIFValueResultp->u.a.sizel, arraycopyb);
     } else {
       /* Empty string */
       svp = newSVpv("", 0);
@@ -2369,7 +2369,7 @@ PERL_STATIC_INLINE short marpaESLIFPerl_importb(pTHX_ marpaESLIFPerl_importConte
     break;
   case MARPAESLIF_VALUE_TYPE_STRING:
     if ((marpaESLIFValueResultp->u.s.p != NULL) && (marpaESLIFValueResultp->u.s.sizel > 0)) {
-      stringp = marpaESLIFPerl_arraycopyp(aTHX_ marpaESLIFValueResultp->u.s.p, (STRLEN) marpaESLIFValueResultp->u.s.sizel, arraycopyb);
+      stringp = marpaESLIFPerl_arraycopyp(aTHX_ (char *) marpaESLIFValueResultp->u.s.p, (STRLEN) marpaESLIFValueResultp->u.s.sizel, arraycopyb);
     } else {
       /* Empty string */
       stringp = newSVpv("", 0);
@@ -5848,7 +5848,7 @@ CODE:
           realinputl = 0; /* Skipping more bytes that what is available */
         }
       }
-      svp = marpaESLIFPerl_arraycopyp(aTHX_ realinputs, realinputl, 0 /* arraycopyb */);
+      svp = marpaESLIFPerl_arraycopyp(aTHX_ (char *) realinputs, realinputl, 0 /* arraycopyb */);
     }
   } else {
     svp = &PL_sv_undef;
