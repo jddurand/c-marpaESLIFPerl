@@ -178,6 +178,28 @@ if ($have_cppguess && ! $sunc) {
                 $ENV{CXXFLAGS} .= " $extra_cxxflags_guess";
             }
             if (defined($extra_ldflags_guess) && (length($extra_ldflags_guess) > 0)) {
+		#
+		# If $extra_ldflags_guess matches -lc++ or -lstdc++ remember this is a guess.
+		# It can be one or the other, and we use the standard ciso646 with _LIBCPP_VERSION technique
+		# to decide
+		#
+		if ($extra_ldflags_guess =~ /\-l(?:c|stdc)++/) {
+		    $ac->msg_checking(sprintf "Checking which C++ library is correct between -lc++ and -lstdc++");
+		    my $check_libcpp = <<RAISE_ERROR_IF_NOT_LIBCPP;
+#include <ciso646>
+#ifdef _LIBCPP_VERSION
+#else
+#  error "Not libc++"
+#endif
+RAISE_ERROR_IF_NOT_LIBCPP
+		    if (try_compile($check_libcpp, { 'C++' => 1 })) {
+			$ac->msg_result('-lc++');
+			$extra_ldflags_guess =~ s/\-l(?:c|stdc)++/-lc++/;
+		    } else {
+			$ac->msg_result('-lstdc++');
+			$extra_ldflags_guess =~ s/\-l(?:c|stdc)++/-lstdc++/;
+		    }
+		}
                 $ac->msg_notice("Pushing $extra_ldflags_guess to OTHERLDFLAGS");
                 push(@OTHERLDFLAGS, $extra_ldflags_guess)
             }
@@ -982,6 +1004,7 @@ sub try_compile {
     my $compile_error_is_fatal = $options->{compile_error_is_fatal} // 0;
     my $link_error_is_fatal = $options->{link_error_is_fatal} // 0;
     my $run_error_is_fatal = $options->{run_error_is_fatal} // 0;
+    my $cplusplus = $options->{'C++'} // 0;
 
     my $stderr_and_stdout_txt = "stderr_and_stdout.txt";
     #
@@ -1018,7 +1041,8 @@ sub try_compile {
         $cbuilder->compile(
             source               => $source,
             object_file          => $object_file,
-            extra_compiler_flags => $extra_compiler_flags
+            extra_compiler_flags => $extra_compiler_flags,
+	    'C++'                => $cplusplus
             );
         $have_compile_error = 0;
 	print "... Compilation successful\n" if (! $silent);
