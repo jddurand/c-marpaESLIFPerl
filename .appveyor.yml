@@ -107,6 +107,7 @@ init:
 # We build using nmake, that is a multi-config generator, so we specify the build type using CMAKE_BUILD_TYPE
 #
 build_script:
+  - perl etc/init_pause.pl
   - cmake -S . -B build_folder -DCMAKE_BUILD_TYPE=RelWithDebInfo -G "NMake Makefiles" -DINSTALL_DEPENDENCIES=ON
   - cmake --build build_folder
 
