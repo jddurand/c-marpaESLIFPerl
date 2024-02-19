@@ -38,7 +38,7 @@ jobs:
       shell: cmd
       run: |
         perl -MFile::HomeDir -e "print \"Home as per File::HomeDir is \" . File::HomeDir->my_home . \"\n\";"
-        perl -MFile::HomeDir -e "print \"pausepath=" . File::Spec->catfile(File::HomeDir->my_home, \".pause\") . \"\n\"" >> $GITHUB_OUTPUT
+        perl -MFile::HomeDir -e "print \"pausepath=\" . File::Spec->catfile(File::HomeDir->my_home, \".pause\") . \"\n\";" >> $GITHUB_OUTPUT
 
     - name: Set PAUSE identity
       shell: cmd
