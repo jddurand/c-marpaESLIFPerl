@@ -5,7 +5,7 @@ use File::HomeDir;
 use File::Spec;
 use POSIX qw/EXIT_SUCCESS/;
 
-my ($user, $heyhey) = @ARGV;
+my ($user, $password) = @ARGV;
 
 my $pause = File::Spec->catfile(File::HomeDir->my_home, '.pause');
 print "Initializing $pause\n";
