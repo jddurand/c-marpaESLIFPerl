@@ -3268,7 +3268,7 @@ sub process_libiconv {
         File::Spec->catfile($outdir, 'lib', 'relocatable.c'),
         File::Spec->catfile($outdir, 'lib', 'iconv.c'),
         );
-    generate_export_h($ac, $outdir, 'libiconv');
+    generate_export_h($ac, $outdir, 'libiconv', undef, undef, undef, undef, "#define ICONV_CONST\n");
     foreach my $source (@sources) {
         $b->compile
             (
