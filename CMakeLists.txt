@@ -100,7 +100,7 @@ if(INSTALL_DEPENDENCIES)
       Dist::Zilla::Plugin::Prereqs::AuthorDeps
       Dist::Zilla::Plugin::Test::Perl::Critic
       Dist::Zilla::Plugin::MetaTests
-      Dist::Zilla::Plugin::Test::EOL
+      # Dist::Zilla::Plugin::Test::EOL # yells on Windows when it should not IMHO
       Dist::Zilla::Plugin::Test::MinimumVersion
       Dist::Zilla::Plugin::MojibakeTests
       Dist::Zilla::Plugin::Test::NoTabs
@@ -156,7 +156,7 @@ if(INSTALL_DEPENDENCIES)
       Test::CPAN::Meta
       Test::CPAN::Meta::JSON
       Test::Deep
-      Test::EOL
+      # Test::EOL # yells on Windows when it should not IMHO
       Test::Kwalitee
       Test::MinimumVersion
       Test::Mojibake
