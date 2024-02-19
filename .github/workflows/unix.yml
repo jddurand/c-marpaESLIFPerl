@@ -30,7 +30,6 @@ jobs:
       uses: shogo82148/actions-setup-perl@v1
 
     - name: Install perl's File::HomeDir and create ~/.pause
-      shell: cmd
       run: |
         cpanm -n File::HomeDir
         perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
