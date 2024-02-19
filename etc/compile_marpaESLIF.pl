@@ -943,6 +943,18 @@ if ($ENV{CC} =~ /\bcl\b/) {
 #
 # Extract and process tarballs in an order that we know in advance
 #
+# The order in which objects will be linked IS IMPORTANT. This is why
+# all objects are in the form objs/DDD_filename.o where DDD is incremented.
+# Objects are then collected in Makefile.PL and sorted in reversed alphabetical order.
+#
+our $OBJI = 0;
+
+sub get_object_file {
+    my ($source) = @_;
+
+    return File::Spec->catfile($OBJS_DIR, sprintf("%03d_%s.o", $OBJI++, basename($source)));
+}
+
 process_genericLogger($ac);
 process_tconv($ac);
 process_genericStack($ac);
@@ -2875,12 +2887,11 @@ sub process_genericLogger {
     my $b = get_cbuilder();
     my @sources = ( File::Spec->catfile($outdir, 'src', 'genericLogger.c') );
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
              include_dirs => \@include_dirs,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              extra_compiler_flags => \@extra_compiler_flags
             );
     }
@@ -2960,11 +2971,10 @@ sub process_tconv {
 	push(@include_dirs, File::Spec->catdir($EXTRACT_DIR, 'dlfcn-win32-1.4.1', 'src'));
     }
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs,
              extra_compiler_flags => \@extra_compiler_flags
             );
@@ -3025,11 +3035,10 @@ sub process_marpaWrapper {
         );
 
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs,
              extra_compiler_flags => \@extra_compiler_flags
             );
@@ -3152,11 +3161,10 @@ EXTRA_DEFINES
         );
 
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs,
              extra_compiler_flags => \@extra_compiler_flags
             );
@@ -3267,11 +3275,10 @@ sub process_libiconv {
         );
     generate_export_h($ac, $outdir, 'libiconv');
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => [
                  File::Spec->catdir($outdir, 'libcharset', 'include'),
                  File::Spec->catdir($outdir, 'include'),
@@ -3358,11 +3365,10 @@ PRMEM_H
         File::Spec->catdir($outdir, 'src', 'ext', 'libcharsetdetect'),
         );
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs,
              'C++' => 1
             );
@@ -3393,11 +3399,10 @@ sub process_dlfcn_win32 {
         File::Spec->catdir($outdir, 'src'),
         );
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs
             );
     }
@@ -3497,11 +3502,10 @@ sub process_pcre2 {
     push(@extra_compiler_flags, '-DMAX_NAME_SIZE=32');
     push(@extra_compiler_flags, '-DMAX_NAME_COUNT=10000');
     foreach my $source (@sources) {
-        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
-             object_file => $object_file,
+             object_file => get_object_file($source),
              include_dirs => \@include_dirs,
              extra_compiler_flags => \@extra_compiler_flags
             );
