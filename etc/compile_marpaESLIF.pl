@@ -3533,7 +3533,7 @@ BODY
     #
     my $is_bigendian;
     try_output($program, \$is_bigendian, { compile_error_is_fatal => 1, link_error_is_fatal => 1, run_error_is_fatal => 1 });
-    if($is_bigendian)
+    if ($is_bigendian) {
         $ac->define_var("WORDS_BIGENDIAN", 1);
         $ac->msg_result("yes");
         $rc = 1;
