@@ -34,15 +34,15 @@ jobs:
       run: cpanm -n File::HomeDir
 
     - name: Get HomeDir as per perl
-      shell: cmd
-      run: perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
-      id: homedir
+      id: gethomedir
+      run: |
+        perl -MFile::HomeDir -e 'print "Home as per File::HomeDir is " . File::HomeDir->my_home . "\n";'
+        perl -MFile::HomeDir -e 'print "homedir=" . File::HomeDir->my_home . "\n"' >> $GITHUB_OUTPUT
 
     - name: Set PAUSE identity
-      shell: cmd
       run: |
-        echo user JDDPAUSE > "${{steps.homedir.outputs.stdout}}"
-        echo password WellWell >> "${{steps.homedir.outputs.stdout}}"
+        echo user JDDPAUSE > "${{steps.gethomedir.outputs.homedir}}"
+        echo password WellWell >> "${{steps.homedir.outputs.homedir}}"
 
     - name: Configure
       run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
