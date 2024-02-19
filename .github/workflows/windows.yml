@@ -1,3 +1,7 @@
+#
+# We explicitely use -G "NMake Makefiles" because MSBuild does not like custom commands
+# that outputs the word "error". They do NOT fail, but by design MSBuild does not like that...
+#
 name: Windows
 
 on:
@@ -17,13 +21,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest]
-        cmake_generator: ["Visual Studio 17 2022"]
-        cmake_generator_platform: ["Win32","x64"]
+        arch: [x86,x64]
     runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v3
-    - uses: microsoft/setup-msbuild@v1.3.1
+    - uses: actions/checkout@v4
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{matrix.arch}}
 
     - name: Set up perl
       uses: shogo82148/actions-setup-perl@v1
@@ -40,13 +45,13 @@ jobs:
       run: perl etc/init_pause.pl JDDPAUSE
 
     - name: Configure
-      run: cmake -S . -B ../build_folder -G "${{matrix.cmake_generator}}" -A "${{matrix.cmake_generator_platform}}" -DINSTALL_DEPENDENCIES=ON
+      run: cmake -S . -B ../build_folder -G "NMake Makefiles -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DINSTALL_DEPENDENCIES=ON
 
     - name: Build
-      run: cmake --build ../build_folder --config ${{env.BUILD_TYPE}}
+      run: cmake --build ../build_folder
 
     - name: Package
-      run: cmake --build ../build_folder --target marpaESLIFPerlPackage
+      run: cmake --build ../build_folder
 
     - name: Test
-      run: cmake --build ../build_folder --target marpaESLIFPerlTest
+      run: cmake --build ../build_folder
