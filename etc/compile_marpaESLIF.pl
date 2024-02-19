@@ -32,6 +32,7 @@ BEGIN {
 }
 
 use Archive::Tar;
+use Carp qw/croak/;
 use Config;
 use Config::AutoConf;
 use Cwd qw/abs_path/;
@@ -45,7 +46,7 @@ use File::Spec;
 use File::Which;
 use File::Temp;
 use Perl::OSType qw/is_os_type/;
-use POSIX qw/EXIT_SUCCESS WIFEXITED WEXITSTATUS/;
+use POSIX qw/EXIT_SUCCESS/;
 use Try::Tiny;
 
 our $EXTRA_INCLUDE_DIR = File::Spec->catdir('inc', 'include');
@@ -53,6 +54,7 @@ our $CONFIG_H = File::Spec->catfile($EXTRA_INCLUDE_DIR, 'marpaESLIFPerl_autoconf
 our $EXTRACT_DIR = 'extract';
 our $TARBALLS_DIR = File::Spec->catdir('etc', 'tarballs');
 our $OBJS_DIR = 'objs';
+our $IS_WINDOWS = is_os_type('Windows');
 
 autoflush STDOUT 1;
 autoflush STDERR 1;
@@ -348,6 +350,7 @@ my %HAVE_HEADERS = ();
 $ac->check_all_headers(
     qw{
         ctype.h
+            dlfcn.h
             errno.h
             fcntl.h
             features.h
@@ -974,7 +977,8 @@ sub try_compile {
     my $run = $options->{run} // 0;
     my $cbuilder_extra_config = $options->{cbuilder_extra_config};
     my $output_ref = $options->{output_ref};
-    my $silent = $options->{silent} // 1;
+    my $silent = $options->{silent} // $ENV{COMPILE_MARPAESLIF_SILENT} // 1;
+    my $quiet = $options->{quiet} // $ENV{COMPILE_MARPAESLIF_QUIET} // 1;
     my $compile_error_is_fatal = $options->{compile_error_is_fatal} // 0;
     my $link_error_is_fatal = $options->{link_error_is_fatal} // 0;
     my $run_error_is_fatal = $options->{run_error_is_fatal} // 0;
@@ -1009,7 +1013,7 @@ sub try_compile {
     my $have_link_error = 0;
     my $have_run_error = 0;
     try {
-        my $cbuilder = ExtUtils::CBuilder->new(config => $cbuilder_extra_config, quiet => 1);
+        my $cbuilder = ExtUtils::CBuilder->new(config => $cbuilder_extra_config, quiet => $quiet);
         $object_file = basename($cbuilder->object_file($source));
         $cbuilder->compile(
             source               => $source,
@@ -1017,6 +1021,7 @@ sub try_compile {
             extra_compiler_flags => $extra_compiler_flags
             );
         $have_compile_error = 0;
+	print "... Compilation successful\n" if (! $silent);
 	#
 	# Optionally link
 	#
@@ -1028,6 +1033,7 @@ sub try_compile {
                 exe_file             => $exe_file
                 );
             $have_link_error = 0;
+	    print "... Link successful\n" if (! $silent);
 	    #
 	    # Optionnally run
 	    #
@@ -1037,15 +1043,19 @@ sub try_compile {
                 }
                 $have_run_error = 1;
                 my $output = `$exe`;
-                if (WIFEXITED(${^CHILD_ERROR_NATIVE})) {
+		if ($? == -1) {
+		    croak "Failed to execute, $!\n";
+		} elsif ($? & 127) {
+		    croak "Child died with signal %d, %s coredump\n", ($? & 127),  ($? & 128) ? 'with' : 'without';
+		} else {
                     #
                     # Child exited normally
                     #
+		    my $exit_code = $? >> 8;
+		    printf "child exited with value %d\n", $exit_code if (! $silent);
                     $have_run_error = 0;
-                    $rc = (WEXITSTATUS(${^CHILD_ERROR_NATIVE}) == EXIT_SUCCESS) ? 1 : 0;
-                } else {
-                    $rc = 0;
-                }
+                    $rc = ($exit_code == EXIT_SUCCESS) ? 1 : 0;
+		}
                 if ($output_ref) {
                     ${$output_ref} = $output;
                 }
@@ -1055,6 +1065,9 @@ sub try_compile {
         } else {
 	    $rc = 1;
 	}
+    }
+    catch {
+	warn "caught error: $_" if (! $silent);
     }
     finally {
         if ($object_file) {
@@ -2280,7 +2293,7 @@ PROLOGUE
 	my $body = <<BODY;
   long double neg = -1.0;
   long double pos = 1.0;
-  long double res = C_COPYSIGNF(pos, neg);
+  long double res = $value(pos, neg);
 
   exit(0);
 BODY
@@ -2871,6 +2884,19 @@ sub process_tconv {
     #
     process_cchardet($ac);
     #
+    # Inside tconv there is dlfcn-win32
+    #
+    if (! $HAVE_HEADERS{"dlfcn.h"}) {
+	#
+	# It makes non-sense to compile dlfcn-win32 in this not a Windows platform
+	# (Note that dlcfn-win32 compiles fine with gcc/mingw-gcc on Win32)
+	#
+	if (! $IS_WINDOWS) {
+	    $ac->msg_notice("Attempting to compile dlfcn-win32 even if the OS type does not seems to be Windows - please install dlfcn library and header otherwise");
+	}
+	process_dlfcn_win32($ac);
+    }
+    #
     # Get project, version and generate compile flag, export.h
     #
     my ($project, $version, $major, $minor, $patch) = get_project_and_version($ac, $outdir);
@@ -2901,17 +2927,21 @@ sub process_tconv {
          File::Spec->catfile($outdir, 'src', 'tconv', 'charset', 'tconv_charset_cchardet.c'),
          File::Spec->catfile($outdir, 'src', 'tconv', 'convert', 'tconv_convert_iconv.c'),
         );
+    my @include_dirs = (
+	File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
+	File::Spec->catdir($EXTRACT_DIR, 'cchardet-1.0.0', 'src', 'ext', 'libcharsetdetect'),
+	File::Spec->catdir($outdir, 'include')
+	);
+    if (! $HAVE_HEADERS{"dlfcn.h"}) {
+	push(@include_dirs, File::Spec->catdir($EXTRACT_DIR, 'dlfcn-win32-1.4.1', 'src'));
+    }
     foreach my $source (@sources) {
         my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
         $b->compile
             (
              source => $source,
              object_file => $object_file,
-             include_dirs => [
-                 File::Spec->catdir($EXTRACT_DIR, 'genericLogger', 'include'),
-                 File::Spec->catdir($EXTRACT_DIR, 'cchardet-1.0.0', 'src', 'ext', 'libcharsetdetect'),
-                 File::Spec->catdir($outdir, 'include')
-             ],
+             include_dirs => \@include_dirs,
              extra_compiler_flags => \@extra_compiler_flags
             );
     }
@@ -3016,7 +3046,10 @@ sub process_marpaESLIF {
     $ac->define_var("MARPAESLIF_UINT64_T", "CMAKE_HELPERS_UINT64_TYPEDEF");
     my @extra_compiler_flags = ();
     push(@extra_compiler_flags, "-D${PROJECT}_NTRACE");
-    if ($ENV{CC} =~ /\bcl\b/) {
+    if ($IS_WINDOWS) {
+	#
+	# DLL platform
+	#
         push(@extra_compiler_flags, "-DLUA_DL_DLL=1");
     } else {
         push(@extra_compiler_flags, "-DLUA_USE_DLOPEN=1");
@@ -3025,6 +3058,7 @@ sub process_marpaESLIF {
     push(@extra_compiler_flags, "-DMARPAESLIFLUA_EMBEDDED=1");
     push(@extra_compiler_flags, "-DMARPAESLIF_BUFSIZ=1048576");
     push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
+    push(@extra_compiler_flags, "-DPCRE2_STATIC=1");
     #
     # We want to align lua integer type with perl ivtype
     #
@@ -3307,6 +3341,40 @@ PRMEM_H
              object_file => $object_file,
              include_dirs => \@include_dirs,
              'C++' => 1
+            );
+    }
+}
+
+sub process_dlfcn_win32 {
+    my ($ac) = @_;
+
+    my $tar = Archive::Tar->new;
+    my $input = File::Spec->catfile($EXTRACT_DIR, 'tconv', '3rdparty', 'tar', 'dlfcn-win32-1.4.1.tar.gz');
+    $tar->read($input);
+    my $outdir = $EXTRACT_DIR; # dlfcn-win32-1.4.1 is part of the tar
+    print "Extracting $input\n";
+    make_path($outdir);
+    {
+        local $CWD = $outdir;
+        $tar->extract();
+    }
+    $outdir = File::Spec->catdir($outdir, 'dlfcn-win32-1.4.1');
+    my @sources = ();
+    push(@sources, File::Spec->catfile($outdir, 'src', 'dlfcn.c'));
+    #
+    # Compile
+    #
+    my $b = get_cbuilder();
+    my @include_dirs = (
+        File::Spec->catdir($outdir, 'src'),
+        );
+    foreach my $source (@sources) {
+        my $object_file = File::Spec->catfile($OBJS_DIR, basename($source) . '.o');
+        $b->compile
+            (
+             source => $source,
+             object_file => $object_file,
+             include_dirs => \@include_dirs
             );
     }
 }
