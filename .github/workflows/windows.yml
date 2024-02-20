@@ -50,8 +50,5 @@ jobs:
     - name: Build
       run: cmake --build ../build_folder
 
-    - name: Package
-      run: cmake --build ../build_folder --target marpaESLIFPerlPackage
-
     - name: Test
       run: cmake --build ../build_folder --target marpaESLIFPerlTest

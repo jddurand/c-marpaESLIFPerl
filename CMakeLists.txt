@@ -24,17 +24,17 @@
 # Local tests done with: cmake -S c-marpaESLIFPerl -B c-marpaESLIFPerl-build -DCMAKE_HELPERS_DEBUG=OFF -DICU_ROOT=C:\icu4c-74_2-Win64-MSVC2019
 #
 cmake_minimum_required(VERSION 3.26.0 FATAL_ERROR)
-project(marpaESLIFPerl) # We will set version later
+#
+# It is VERY important to keep the marpaESLIFPerl version in sync with marpaESLIF.
+# I did not found an easy portable way to do so, especially since when marpaESLIF was
+# splitted in marpaESLIF and marpaESLIFPerl.
+#
+project(marpaESLIFPerl VERSION 6.0.32 LANGUAGES C CXX)
 #
 # Option to install perl dependencies. OFF is the default: packagers are assumed to
 # have already pre-installed on their builders.
 #
 option(INSTALL_DEPENDENCIES "Install Perl dependencies" OFF)
-#
-# PROJECT_VERSION: see below. we will inherit marpaESLIF's PROJECT_VESION, and increment
-# only PROJECT_VERSION_TWEAK
-#
-set(PROJECT_VERSION_TWEAK 1)
 #
 # Get library helper
 #
