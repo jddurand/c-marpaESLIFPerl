@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.26.0 FATAL_ERROR)
 # I did not found an easy portable way to do so, especially since when marpaESLIF was
 # splitted in marpaESLIF and marpaESLIFPerl.
 #
-project(marpaESLIFPerl VERSION 6.0.32 LANGUAGES C CXX)
+project(marpaESLIFPerl VERSION 6.0.33 LANGUAGES C CXX)
 #
 # Option to install perl dependencies. OFF is the default: packagers are assumed to
 # have already pre-installed on their builders.
