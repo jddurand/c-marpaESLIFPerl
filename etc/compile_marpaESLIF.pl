@@ -60,6 +60,12 @@ autoflush STDOUT 1;
 autoflush STDERR 1;
 
 #
+# A global flag coming from environment that disabled JIT in PCRE2. This should never be needed, but JIT
+# MAY not compile on your architecture.
+#
+our $JIT = $ENV{MARPAESLIFPERL_JIT} // 1;
+
+#
 # Our distribution have both C and CPP files, and we want to make sure that modifying
 # CFLAGS will not affect cpp files. Since we require a version of ExtUtils::CBuilder
 # that support the environment variables, explicitely setting the environment variables
@@ -305,49 +311,54 @@ if ($^O eq "netbsd" && ! $isc99) {
 
 my $has_Werror = 0;
 if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
-    $ac->msg_checking("optimization flags:");
-    $ac->msg_result('');
-    if (($cbuilder_config{cc} // 'cc') eq 'cl') {
-        foreach my $flag ("/O2") {
-            $ac->msg_checking("if flag $flag works:");
-            if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $flag })) {
-                $ac->msg_result('yes');
-                $optimize .= " $flag";
-                last;
-            } else {
-                $ac->msg_result('no');
-            }
-        }
+    if(defined($ENV{MARPAESLIFPERL_OPTIM_FLAGS})) {
+	$optimize = "$ENV{MARPAESLIFPERL_OPTIM_FLAGS}";
+	$ac->msg_notice("Forced optimization flags: $optimize");
     } else {
-        #
-        # Some versions of gcc may not yell with bad options unless -Werror is set.
-        # Check that flag and set it temporarly.
-        #
-        my $tmpflag = '-Werror';
-        $ac->msg_checking("if flag $tmpflag works:");
-        if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
-            $ac->msg_result('yes');
-            $has_Werror = 1;
-        } else {
-            $ac->msg_result('no');
-            $tmpflag = '';
-        }
-        #
-        # We test AIX case first because it overlaps with general O3
-        #
-        foreach my $flag ("-O3 -qstrict", # xlc
-                          "-O3",          # cl, gcc
-                          "-xO3"          # CC
-            ) {
-            $ac->msg_checking("if flag $flag works:");
-            if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
-                $ac->msg_result('yes');
-                $optimize .= " $flag";
-                last;
-            } else {
-                $ac->msg_result('no');
-            }
-        }
+	$ac->msg_checking("optimization flags:");
+	$ac->msg_result('');
+	if (($cbuilder_config{cc} // 'cc') eq 'cl') {
+	    foreach my $flag ("/O2") {
+		$ac->msg_checking("if flag $flag works:");
+		if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $flag })) {
+		    $ac->msg_result('yes');
+		    $optimize .= " $flag";
+		    last;
+		} else {
+		    $ac->msg_result('no');
+		}
+	    }
+	} else {
+	    #
+	    # Some versions of gcc may not yell with bad options unless -Werror is set.
+	    # Check that flag and set it temporarly.
+	    #
+	    my $tmpflag = '-Werror';
+	    $ac->msg_checking("if flag $tmpflag works:");
+	    if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $tmpflag })) {
+		$ac->msg_result('yes');
+		$has_Werror = 1;
+	    } else {
+		$ac->msg_result('no');
+		$tmpflag = '';
+	    }
+	    #
+	    # We test AIX case first because it overlaps with general O3
+	    #
+	    foreach my $flag ("-O3 -qstrict", # xlc
+			      "-O3",          # cl, gcc
+			      "-xO3"          # CC
+		) {
+		$ac->msg_checking("if flag $flag works:");
+		if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
+		    $ac->msg_result('yes');
+		    $optimize .= " $flag";
+		    last;
+		} else {
+		    $ac->msg_result('no');
+		}
+	    }
+	}
     }
 }
 
@@ -3476,7 +3487,9 @@ sub process_pcre2 {
     push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
     push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
     push(@extra_compiler_flags, "-DPCRE2_STATIC=1");
-    push(@extra_compiler_flags, "-DSUPPORT_JIT=1");
+    if ($JIT) {
+	push(@extra_compiler_flags, "-DSUPPORT_JIT=1");
+    }
     push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
     #
     # SUPPORT_UNICODE and EBCDIC are not compatible
@@ -3635,7 +3648,7 @@ BODY
 }
 
 #
-# A specialized ExtUtils::CBuilder new wrapper, that gets optimize and c99 flags
+# A specialized ExtUtils::CBuilder new wrapper, that gets optimize flag but do not propagate it to the caller via CFLAGS.txt
 #
 sub get_cbuilder {
     my %EXTUTILS_BUILDER_CONFIG = ();
