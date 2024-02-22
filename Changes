@@ -1,6 +1,96 @@
 Changelog for MarpaX-ESLIF
 
-6.0.33 2024-02-20T07:08:08
+6.0.33.1 2024-02-22T02:11:11
+ [Jean-Damien Durand <jeandamiendurand@free.fr>]
+ - README.txt: Fix inversion of targets
+ - tarballs/marpaeslifperl-src.tar.gz: Removed
+ - CMakeLists.txt: Removed creation of marpaeslifperl-src.tar.gz
+ - CMakeLists.txt: Fix creation of marpaeslifperl-src.tar.gz
+ - CMakeLists.txt: Fix since the removal of inc/marpaESLIFPerl directory
+ - Removed non-needed files from the cmake3 tentative [ci skip]
+ - .gitignore: Add MarpaX-ESLIF-*
+ - README.txt: Update
+ - README.txt: Update [ci skip]
+ - dist.ini: dev+
+
+6.0.33.0 2024-02-22T00:51:49
+ [Jean-Damien Durand <jeandamiendurand@free.fr>]
+ - etc/compile_marpaESLIF.pl: Limit the optimize flag tests if sun compiler
+   or not
+ - Removed MarpaX-ESLIF-6.0.33-TRIAL.tar.gz
+ - dist.ini: version_regexp, tag_regexp and tag_message
+ - Support of MARPAESLIFPERL_JIT and MARPAESLIFPERL_OPTIM_FLAGS
+ - dist.ini: fixes
+ - Removed and ignore ^MarpaX* [ci skip]
+ - 6.0.33
+ - dist.ini: Fixed version_regexp [ci skip]
+ - Version 6.0.33
+ - Version 6.0.32 [ci skip]
+ - workflows/windows.yml: Fix targets [ci skip]
+ - workflows/windows.yml: Fix typo [ci skip]
+ - workflows/windows.yml: Switch to NMake Makefiles [ci skip]
+ - etc/compile_marpaESLIF.pl: ICONV_CONST dev+
+ - etc/compile_marpaESLIF.pl: Add iconv include
+ - Order of objects dev+ 2
+ - Order of objects dev+
+ - Remove Test::Pod::LinkCheck: no option to disable cpan check as far as I
+   see [ci skip]
+ - workflows/unix.yml: otool dev+ [ci skip]
+ - ESLIF.xs: Fix clang warning [ci skip]
+ - etc/compile_marpaESLIF.pl: +lc++ v.s. +lstdc++ dev+
+ - Removed Test::EOF and fix for Test::Pod::LinkCheck
+ - etc/compile_marpaESLIF.pl: Win32 dev+
+ - etc/compile_marpaESLIF.pl: Fix
+ - etc/compile_marpaESLIF.pl: check_big_endian test must never fail [ci
+   skip]
+ - CI: print perl config
+ - etc/init_pause.pl: Fix 2
+ - etc/init_pause.pl: Fix
+ - etc/init_pause.pl: Use in appveyor [ci skip]
+ - etc/init_pause.pl: Add and use
+ - .github/workflows: dev+
+ - .github/workflows: dev+ [ci skip]
+ - .github/workflows: Work on homedir dev+ [ci skip]
+ - workflows/windows.yml: pause setup [ci skip]
+ - CMakeLists.txt: Fixes dev+
+ - CMakeLists.txt: Fixes
+ - CMakeLists.txt: Removed Dist::Zilla::Plugin::AlienBuild [ci skip]
+ - CMakeLists.txt dev+
+ - Config::AutoConf dev+ [ci skip]
+ - Back to Config::AutoConf dev+ [ci skip]
+ - .appveyor.yml: We want a full clone [ci skip]
+ - workflows/windows.yml: Set PAUSE identity in %USERPROFILE%\.pause dev+
+ - workflows/windows.yml: Set PAUSE identity in %USERPROFILE%\.pause
+ - Move get_cmake3.pl to etc/call_cmake3.pl [ci skip]
+ - Move call_cmake3.pl to etc/call_cmake3.pl [ci skip]
+ - dist.ini: PruneCruft dev+ [ci skip]
+ - dist.ini: Gather dev+
+ - CMakeLists.txt: perl deps dev+
+ - CI tests tuning dev+
+ - CI prereqs dev+
+ - .appveyor.yml: Add
+ - CI windows dev+
+ - CI dev+
+ - CMakeLists.txt: Update marpaESLIF git dependency
+ - dist.ini: dev+
+ - dist.ini: Fix Awesome.WriteMakefile_arg
+ - dist.ini: Set INC and MYEXTLIB
+ - call_cmake3.pl: Add $ENV{CMAKE_HELPERS_WIN32_PACKAGING} = 1
+ - README.txt: Add
+ - call_cmake3.pl: Add print statements
+ - marpaESLIF/alienfile: Add -DCMAKE_BUILD_TYPE=Release
+ - call_cmake3.pl: Set $ENV{CMAKE_HELPERS_NAMELINK_SKIP} = 1
+ - dev+
+ - marpaESLIFPerl/alienfile: -DPREFER_STATIC_DEPENDENCIES=ON
+ - CMakeLists.txt: Support of $ENV{CMAKE_HELPERS_DEPEND_CMAKE_HELPERS_FILE}
+ - call_cmake3.pl: Fix _env_cmake_helpers_depend_file_toupper to
+   unauthoirized characters
+ - ESLIF.xs: Use Perl macros for LIKELY, UNLIKELY, PERL_STATIC_INLINE
+
+ [jddurand <jeandamiendurand@free.fr>]
+ - Initial commit
+
+6.0.33 2024-02-20T07:08:08Z
  [Jean-Damien Durand <jeandamiendurand@free.fr>]
  - dist.ini: Fixed version_regexp [ci skip]
  - Version 6.0.33

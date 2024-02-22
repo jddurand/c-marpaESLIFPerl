@@ -90,7 +90,6 @@ on 'develop' => sub {
   requires "Dist::Zilla::Plugin::CPANFile" => "0";
   requires "Dist::Zilla::Plugin::ChangelogFromGit::CPAN::Changes" => "0";
   requires "Dist::Zilla::Plugin::DynamicPrereqs" => "0";
-  requires "Dist::Zilla::Plugin::GatherDir" => "0";
   requires "Dist::Zilla::Plugin::GatherFile" => "0";
   requires "Dist::Zilla::Plugin::Git::Contributors" => "0";
   requires "Dist::Zilla::Plugin::Git::NextVersion" => "0";
