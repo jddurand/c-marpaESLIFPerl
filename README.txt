@@ -1,14 +1,22 @@
+Prologue:
+
+If marpaESLIF version is A.B.C make sure that there is a tag A.B.C.0 if A.B.C interface was never pushed.
+
+The version of marpaESLIFPerl is always A.B.C.D, where:
+- A.B.C is the version of marpaESLIF
+- D is the version of the perl interface for A.B.C
+
+Once the tag A.B.C.D exist, a release will automatically increase and publish the tag A.B.C.D+1.
+
 Usage:
 
 cmake -S c-marpaESLIFPerl -B c-marpaESLIFPerl-build
 cmake --build c-marpaESLIFPerl-build
 
-tarballs of all dependents are then pushed to inc/marpaESLIF/tarballs, default rule is to produce a package MarpaX-ESLIF-<VERSION>.tar.gz in the source dir:
 
-One can test the perl distribution with standard commands, i.e. (with your installed make):
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlTest
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlXTest
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
 
-cd c-marpaESLIFPerl/MarpaX-ESLIF-<VERSION>
-perl Makefile.PL
-make
-make test
-make xtest
+Because of the way Dist::Zilla works, most of things are done in the source dir anyway, regardless of cmake -B option.
