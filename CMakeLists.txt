@@ -219,17 +219,6 @@ foreach(dep IN LISTS deps)
   list(APPEND deps-tgz ${dep-tgz})
 endforeach()
 #
-# Generate a minimal marpaeslifperl-src.tar.gz
-#
-set(depname_src marpaeslifperl-src)
-set(dep-tgz ${tarballs-destdir}/${depname_src}.tar.gz)
-  add_custom_command(
-    OUTPUT ${dep-tgz}
-    COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz}
-    DEPENDS ${create_tar_gz-pl}
-  )
-  list(APPEND deps-tgz ${dep-tgz})
-#
 # marpaESLIFPerlPackage
 #
 add_custom_target(marpaESLIFPerlPackage ALL
