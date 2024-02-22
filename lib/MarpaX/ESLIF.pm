@@ -108,17 +108,21 @@ The main features of this BNF are:
 
 =over
 
-=item Sub-grammars
+=item Embedded Lua language
 
-The number of sub grammars is unlimited.
+Actions can be writen directly in the grammar.
 
 =item Regular expressions
 
-Native support of regular expression using the L<PCRE2|http://www.pcre.org/> library (i.e. this is <not> exactly perl regexps, although very closed).
+Matching supports natively regular expression using the L<PCRE2|http://www.pcre.org/> library.
 
 =item Streaming
 
 Native support of streaming input.
+
+=item Sub-grammars
+
+The number of sub grammars is unlimited.
 
 =back
 
@@ -141,6 +145,121 @@ With a logger, using Log::Any::Adapter::Stderr as an example:
   printf "ESLIF library version: %s\n", $eslif->version;
 
 This class and its derivatives are thread-safe. Although there can be many ESLIF instances, in practice a single instance is enough, unless you want different logging interfaces. This is why the C<new> method is implemented as a I<multiton>. Once a MarpaX::ESLIF instance is created, the user should create a L<MarpaX::ESLIF::Grammar> instance to have a working grammar.
+
+A full example with a self-contained grammar, actions being writen in Lua:
+
+  package MyRecognizer;
+  sub new {
+      my ($pkg, $string) = @_;
+      open my $fh, "<", \$string;
+      bless { data => undef, fh => $fh }, $pkg
+  }
+  sub read                   { my ($self) = @_; defined($self->{data} = readline($self->{fh})) } # Reader
+  sub isEof                  {  eof shift->{fh} } # End of data ?
+  sub isCharacterStream      {                1 } # Character stream ?
+  sub encoding               {                  } # Encoding ?
+  sub data                   {    shift->{data} } # data
+  sub isWithDisableThreshold {                0 } # Disable threshold warning ?
+  sub isWithExhaustion       {                0 } # Exhaustion event ?
+  sub isWithNewline          {                1 } # Newline count ?
+  sub isWithTrack            {                0 } # Absolute position tracking ?
+  1;
+
+  package MyValue;
+  sub new                { bless { result => undef}, shift }
+  sub isWithHighRankOnly { 1 }  # When there is the rank adverb: highest ranks only ?
+  sub isWithOrderByRank  { 1 }  # When there is the rank adverb: order by rank ?
+  sub isWithAmbiguous    { 0 }  # Allow ambiguous parse ?
+  sub isWithNull         { 0 }  # Allow null parse ?
+  sub maxParses          { 0 }  # Maximum number of parse tree values
+  sub getResult          { my ($self) = @_; $self->{result} }
+  sub setResult          { my ($self, $result) = @_; $self->{result} = $result }
+  1;
+
+  package main;
+  use Log::Any qw/$log/, default_adapter => qw/Stdout/;
+  use MarpaX::ESLIF;
+  use Test::More;
+
+  my %tests = (
+      '1'              => 1,
+      '1/2'            => 0.5,
+      'x'              => undef,
+      '(1*(2+3)/4**5)' => 0.0048828125
+      );
+
+  my $eslif = MarpaX::ESLIF->new($log);
+  my $g = MarpaX::ESLIF::Grammar->new($eslif, do { local $/; <DATA> });
+  while (my ($key, $value) = each %tests) {
+      my $r = MyRecognizer->new($key);
+      my $v = MyValue->new();
+      if (defined($value)) {
+          ok($g->parse($r, $v), "'$key' parse is ok");
+          ok($v->getResult == $value, "'$key' value is $value");
+      } else {
+          ok(!$g->parse($r, $v), "'$key' parse is ko");
+      }
+  }
+
+  done_testing();
+
+  __DATA__
+  :discard ::= /[\s]+/
+  :default ::= event-action => ::luac->function()
+                                         print('In event-action')
+                                         return true
+                                       end
+  event ^exp = predicted exp
+  exp ::=
+      /[\d]+/                             action => ::luac->function(input) return tonumber(input) end
+      |    "("  exp ")"    assoc => group action => ::luac->function(l,e,r) return e               end
+     || exp (- '**' -) exp assoc => right action => ::luac->function(x,y)   return x^y             end
+     || exp (-  '*' -) exp                action => ::luac->function(x,y)   return x*y             end
+      | exp (-  '/' -) exp                action => ::luac->function(x,y)   return x/y             end
+     || exp (-  '+' -) exp                action => ::luac->function(x,y)   return x+y             end
+      | exp (-  '-' -) exp                action => ::luac->function(x,y)   return x-y             end
+
+Output will be:
+
+  ok 1 - '1' parse is ok
+  ok 2 - '1' value is 1
+  ok 3 - '1/2' parse is ok
+  ok 4 - '1/2' value is 0.5
+  --------------------------------------------
+  Recognizer progress (grammar level 0 (Grammar level 0)):
+  [P1@0..0] exp ::= . exp[0]
+  [P2@0..0] exp[0] ::= . exp[1]
+  [P3@0..0] exp[1] ::= . exp[2]
+  [P4@0..0] exp[2] ::= . exp[3]
+  [P10@0..0] exp[3] ::= . /[\d]+/
+  [P11@0..0] exp[3] ::= . "("
+  [P11@0..0]            exp[0]
+  [P11@0..0]            ")"
+  [P13@0..0] exp[2] ::= . exp[3]
+  [P13@0..0]            Internal[5]
+  [P13@0..0]            exp[2]
+  [P15@0..0] exp[1] ::= . exp[1]
+  [P15@0..0]            Internal[6]
+  [P15@0..0]            exp[2]
+  [P17@0..0] exp[1] ::= . exp[1]
+  [P17@0..0]            Internal[7]
+  [P17@0..0]            exp[2]
+  [P19@0..0] exp[0] ::= . exp[0]
+  [P19@0..0]            Internal[8]
+  [P19@0..0]            exp[1]
+  [P21@0..0] exp[0] ::= . exp[0]
+  [P21@0..0]            Internal[9]
+  [P21@0..0]            exp[1]
+  Expected symbol: /[\d]+/ (symbol No 7)
+  Expected symbol: "(" (symbol No 8)
+  <<<<<< FAILURE AT LINE No 1 COLUMN No 1, HERE: >>>>>>
+  UTF-8 converted data after the failure (1 bytes) at 1:1:
+  0x000000: 78                                              x
+  --------------------------------------------
+  ok 5 - 'x' parse is ko
+  ok 6 - '(1*(2+3)/4**5)' parse is ok
+  ok 7 - '(1*(2+3)/4**5)' value is 0.0048828125
+  1..7
 
 =head1 METHODS
 
