@@ -345,10 +345,14 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
 	    #
 	    # We test AIX case first because it overlaps with general O3
 	    #
-	    foreach my $flag ("-O3 -qstrict", # xlc
-			      "-O3",          # cl, gcc
-			      "-xO3"          # CC
-		) {
+            my @flag_candidates = ();
+            if ($sunc) {
+                push(@flag_candidates, "-xO3"); # CC
+            } else {
+                push(@flag_candidates, "-O3 -qstrict"); # xlc
+                push(@flag_candidates, "-O3"); # cl, gcc, clang
+            }
+	    foreach my $flag (@flag_candidates) {
 		$ac->msg_checking("if flag $flag works:");
 		if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
 		    $ac->msg_result('yes');
