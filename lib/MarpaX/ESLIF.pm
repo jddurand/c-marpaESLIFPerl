@@ -219,6 +219,8 @@ A full example with a self-contained grammar, actions being writen in Lua:
      || exp (-  '+' -) exp                action => ::luac->function(x,y)   return x+y             end
       | exp (-  '-' -) exp                action => ::luac->function(x,y)   return x-y             end
 
+=for test_synopsis BEGIN { die "SKIP: skip this pod, this is output from previous code\n"; }
+
 Output will be:
 
   ok 1 - '1' parse is ok
@@ -260,6 +262,8 @@ Output will be:
   ok 6 - '(1*(2+3)/4**5)' parse is ok
   ok 7 - '(1*(2+3)/4**5)' value is 0.0048828125
   1..7
+
+=end
 
 =head1 METHODS
 
