@@ -29,8 +29,8 @@ cd -
 
 An official release is then done using:
 cmake -S c-marpaESLIFPerl -B c-marpaESLIFPerl-build
-cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
 
 A test release is then done using:
 cmake -S c-marpaESLIFPerl -B c-marpaESLIFPerl-build
-cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
