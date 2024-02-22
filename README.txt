@@ -31,4 +31,5 @@ An official release is then done using:
 cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
 
 A test release is then done using:
+cmake --build c-marpaESLIFPerl-build
 cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
