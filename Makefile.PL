@@ -12,11 +12,11 @@ use Config;
 use ExtUtils::Constant qw /constant_types C_constant XS_constant autoload/;
 use File::Find;
 use File::Spec;
+use IO::Handle;
 use Probe::Perl;
 use Try::Tiny;
 
-autoflush STDOUT 1;
-autoflush STDERR 1;
+$| = 1;
 
 #
 # Generate constant types
@@ -182,7 +182,7 @@ my %WriteMakefileArgs = (
     "threads::shared" => 0,
     "utf8" => 0
   },
-  "VERSION" => "6.0.33.1",
+  "VERSION" => "6.0.33.2",
   "test" => {
     "TESTS" => "t/*.t"
   }
