@@ -227,7 +227,6 @@ set(dep-tgz ${tarballs-destdir}/${depname_src}.tar.gz)
     OUTPUT ${dep-tgz}
     COMMAND ${PERL_EXECUTABLE} ${create_tar_gz-pl} ${dep-tgz} CMakeLists.txt
     DEPENDS ${create_tar_gz-pl}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inc/marpaESLIFPerl
   )
   list(APPEND deps-tgz ${dep-tgz})
 #
