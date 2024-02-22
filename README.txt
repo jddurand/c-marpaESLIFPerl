@@ -23,6 +23,9 @@ Releases must be preceeded by:
 
 cd c-marpaESLIFPerl
 git clean -ffdx
+git checkout .
+git pull
+cd -
 
 An official release is then done using:
 cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
