@@ -16,7 +16,16 @@ cmake --build c-marpaESLIFPerl-build
 
 cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlTest
 cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlXTest
-cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
-cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
 
 Because of the way Dist::Zilla works, most of things are done in the source dir anyway, regardless of cmake -B option.
+
+Releases must be preceeded by:
+
+cd c-marpaESLIFPerl
+git clean -ffdx
+
+An official release is then done using:
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlReleaseTrial
+
+A test release is then done using:
+cmake --build c-marpaESLIFPerl-build --target marpaESLIFPerlRelease
