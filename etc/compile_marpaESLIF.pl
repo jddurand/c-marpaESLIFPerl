@@ -45,6 +45,7 @@ use File::Path qw/make_path remove_tree/;
 use File::Spec;
 use File::Which;
 use File::Temp;
+use IO::Handle;
 use Perl::OSType qw/is_os_type/;
 use POSIX qw/EXIT_SUCCESS/;
 use Try::Tiny;
@@ -56,8 +57,7 @@ our $TARBALLS_DIR = File::Spec->catdir('etc', 'tarballs');
 our $OBJS_DIR = 'objs';
 our $IS_WINDOWS = is_os_type('Windows');
 
-autoflush STDOUT 1;
-autoflush STDERR 1;
+$| = 1;
 
 #
 # A global flag coming from environment that disabled JIT in PCRE2. This should never be needed, but JIT
