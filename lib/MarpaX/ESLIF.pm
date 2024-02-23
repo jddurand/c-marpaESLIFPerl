@@ -288,7 +288,7 @@ The same but with actions writen in B<Perl>:
   
   done_testing();
 
-=for data_using_actions BEGIN { die "SKIP: skip this pod, this is output from previous code\n"; }
+=for test_synopsis BEGIN { die "SKIP: skip this pod, this is output from previous code\n"; }
 
 In both cases, the output will be:
 
@@ -331,8 +331,6 @@ In both cases, the output will be:
   ok 6 - '(1*(2+3)/4**5)' parse is ok
   ok 7 - '(1*(2+3)/4**5)' value is 0.0048828125
   1..7
-
-=end data_using_actions
 
 =head1 METHODS
 
