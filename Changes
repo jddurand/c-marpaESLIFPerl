@@ -1,6 +1,17 @@
 Changelog for MarpaX-ESLIF
 
-6.0.33.2 2024-02-22T07:19:09
+6.0.33.3 2024-02-23T00:30:27
+ [Jean-Damien Durand <jeandamiendurand@free.fr>]
+ - MarpaX/ESLIF.pm: Add JSON encoder/decoder example in synopsis
+ - ESLIF/Introduction.pod: Fix for Pod::Weaver
+ - lib: Fix xt/pod-syntax.t
+ - MarpaX/ESLIF.pm: POD dev+
+ - MarpaX/ESLIF.pm: Prevent output data in the synopsis to be used by
+   synopsys author test
+ - More examples in the top-level package file
+ - dist.ini: Work on prereqs
+
+6.0.33.2 2024-02-22T07:19:09Z
  [Jean-Damien Durand <jeandamiendurand@free.fr>]
  - Do $|=1 instead of autoflush to please old perls
 
