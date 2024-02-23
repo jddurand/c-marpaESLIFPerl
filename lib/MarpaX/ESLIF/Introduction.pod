@@ -1,12 +1,8 @@
-=encoding UTF-8
-
 # PODNAME: MarpaX::ESLIF::Introduction
 
 # ABSTRACT: MarpaX::ESLIF's Introduction
 
-
-
-
+=encoding UTF-8
 
 =head1 DESCRIPTION
 
