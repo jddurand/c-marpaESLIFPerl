@@ -332,6 +332,24 @@ In both cases, the output will be:
   ok 7 - '(1*(2+3)/4**5)' value is 0.0048828125
   1..7
 
+MarpaX::ESLIF also provide native JSON encoder/decoder:
+
+  use Log::Any qw/$log/, default_adapter => qw/Stdout/;
+  use MarpaX::ESLIF;
+  
+  my $eslif = MarpaX::ESLIF->new($log);
+  my $json = MarpaX::ESLIF::JSON->new($eslif);
+  
+  my $perl_hash = $json->encode({data => { 1 => [ 2, "3" ] } });
+  $log->infof('JSON Encoder: %s', $perl_hash);
+  
+  my $json_string = $json->decode($perl_hash);
+  $log->infof('JSON decoder: %s', $json_string);
+
+  # Output: 
+  # JSON Encoder: {"data":{"1":[2,"3"]}}
+  # JSON decoder: {data => {1 => [2,3]}}
+
 =head1 METHODS
 
 =head2 MarpaX::ESLIF->new($loggerInterface)
