@@ -146,7 +146,7 @@ With a logger, using Log::Any::Adapter::Stderr as an example:
 
 This class and its derivatives are thread-safe. Although there can be many ESLIF instances, in practice a single instance is enough, unless you want different logging interfaces. This is why the C<new> method is implemented as a I<multiton>. Once a MarpaX::ESLIF instance is created, the user should create a L<MarpaX::ESLIF::Grammar> instance to have a working grammar.
 
-A full example with a self-contained grammar, actions being writen in Lua:
+A full example of a calculator with a I<self-contained grammar>, actions being writen in B<Lua>:
 
   package MyRecognizer;
   sub new {
@@ -164,7 +164,7 @@ A full example with a self-contained grammar, actions being writen in Lua:
   sub isWithNewline          {                1 } # Newline count ?
   sub isWithTrack            {                0 } # Absolute position tracking ?
   1;
-
+  
   package MyValue;
   sub new                { bless { result => undef}, shift }
   sub isWithHighRankOnly { 1 }  # When there is the rank adverb: highest ranks only ?
@@ -175,32 +175,33 @@ A full example with a self-contained grammar, actions being writen in Lua:
   sub getResult          { my ($self) = @_; $self->{result} }
   sub setResult          { my ($self, $result) = @_; $self->{result} = $result }
   1;
-
+  
   package main;
   use Log::Any qw/$log/, default_adapter => qw/Stdout/;
   use MarpaX::ESLIF;
   use Test::More;
-
+  
   my %tests = (
-      '1'              => 1,
-      '1/2'            => 0.5,
-      'x'              => undef,
-      '(1*(2+3)/4**5)' => 0.0048828125
+      1 => [ '1',               1            ],
+      2 => [ '1/2',             0.5          ],
+      3 => [ 'x',               undef        ],
+      4 => [ '(1*(2+3)/4**5)',  0.0048828125 ]
       );
-
+  
   my $eslif = MarpaX::ESLIF->new($log);
   my $g = MarpaX::ESLIF::Grammar->new($eslif, do { local $/; <DATA> });
-  while (my ($key, $value) = each %tests) {
-      my $r = MyRecognizer->new($key);
+  foreach (sort { $a <=> $b} keys %tests) {
+      my ($input, $value) = @{$tests{$_}};
+      my $r = MyRecognizer->new($input);
       my $v = MyValue->new();
       if (defined($value)) {
-          ok($g->parse($r, $v), "'$key' parse is ok");
-          ok($v->getResult == $value, "'$key' value is $value");
+          ok($g->parse($r, $v), "'$input' parse is ok");
+          ok($v->getResult == $value, "'$input' value is $value");
       } else {
-          ok(!$g->parse($r, $v), "'$key' parse is ko");
+          ok(!$g->parse($r, $v), "'$input' parse is ko");
       }
   }
-
+  
   done_testing();
 
   __DATA__
@@ -219,9 +220,77 @@ A full example with a self-contained grammar, actions being writen in Lua:
      || exp (-  '+' -) exp                action => ::luac->function(x,y)   return x+y             end
       | exp (-  '-' -) exp                action => ::luac->function(x,y)   return x-y             end
 
-=for test_synopsis BEGIN { die "SKIP: skip this pod, this is output from previous code\n"; }
+The same but with actions writen in B<Perl>:
 
-Output will be:
+  package MyRecognizer;
+  sub new {
+      my ($pkg, $string) = @_;
+      open my $fh, "<", \$string;
+      bless { data => undef, fh => $fh }, $pkg
+  }
+  sub read                   { my ($self) = @_; defined($self->{data} = readline($self->{fh})) } # Reader
+  sub isEof                  {  eof shift->{fh} } # End of data ?
+  sub isCharacterStream      {                1 } # Character stream ?
+  sub encoding               {                  } # Encoding ?
+  sub data                   {    shift->{data} } # data
+  sub isWithDisableThreshold {                0 } # Disable threshold warning ?
+  sub isWithExhaustion       {                0 } # Exhaustion event ?
+  sub isWithNewline          {                1 } # Newline count ?
+  sub isWithTrack            {                0 } # Absolute position tracking ?
+  1;
+  
+  package MyValue;
+  sub new                { bless { result => undef}, shift }
+  sub isWithHighRankOnly { 1 }  # When there is the rank adverb: highest ranks only ?
+  sub isWithOrderByRank  { 1 }  # When there is the rank adverb: order by rank ?
+  sub isWithAmbiguous    { 0 }  # Allow ambiguous parse ?
+  sub isWithNull         { 0 }  # Allow null parse ?
+  sub maxParses          { 0 }  # Maximum number of parse tree values
+  sub getResult          { my ($self) = @_; $self->{result} }
+  sub setResult          { my ($self, $result) = @_; $self->{result} = $result }
+  #
+  # Here the actions are writen in Perl, they all belong to the valuator namespace 'MyValue'
+  #
+  sub tonumber           { shift; $_[0] }
+  sub e                  { shift; $_[1] }
+  sub power              { shift; $_[0] ** $_[1] }
+  sub mul                { shift; $_[0]  * $_[1] }
+  sub div                { shift; $_[0]  / $_[1] }
+  sub plus               { shift; $_[0]  + $_[1] }
+  sub minus              { shift; $_[0]  - $_[1] }
+  1;
+  
+  package main;
+  use Log::Any qw/$log/, default_adapter => qw/Stdout/;
+  use MarpaX::ESLIF;
+  use Test::More;
+  
+  my %tests = (
+      1 => [ '1',               1            ],
+      2 => [ '1/2',             0.5          ],
+      3 => [ 'x',               undef        ],
+      4 => [ '(1*(2+3)/4**5)',  0.0048828125 ]
+      );
+  
+  my $eslif = MarpaX::ESLIF->new($log);
+  my $g = MarpaX::ESLIF::Grammar->new($eslif, do { local $/; <DATA> });
+  foreach (sort { $a <=> $b} keys %tests) {
+      my ($input, $value) = @{$tests{$_}};
+      my $r = MyRecognizer->new($input);
+      my $v = MyValue->new();
+      if (defined($value)) {
+          ok($g->parse($r, $v), "'$input' parse is ok");
+          ok($v->getResult == $value, "'$input' value is $value");
+      } else {
+          ok(!$g->parse($r, $v), "'$input' parse is ko");
+      }
+  }
+  
+  done_testing();
+
+=for data_using_actions BEGIN { die "SKIP: skip this pod, this is output from previous code\n"; }
+
+In both cases, the output will be:
 
   ok 1 - '1' parse is ok
   ok 2 - '1' value is 1
@@ -263,7 +332,7 @@ Output will be:
   ok 7 - '(1*(2+3)/4**5)' value is 0.0048828125
   1..7
 
-=end
+=end data_using_actions
 
 =head1 METHODS
 
