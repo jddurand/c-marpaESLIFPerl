@@ -182,11 +182,37 @@ Valuation is also asking for an implementation of your own, that must provide so
   
 A full example of a calculator with a I<self-contained grammar>, using the recognizer and valuation implementation above, and actions writen in B<Lua>:
 
+  package MyRecognizer;
+  sub new {
+      my ($pkg, $string) = @_;
+      open my $fh, "<", \$string;
+      bless { data => undef, fh => $fh }, $pkg
+  }
+  sub read                   { my ($self) = @_; defined($self->{data} = readline($self->{fh})) } # Reader
+  sub isEof                  {  eof shift->{fh} } # End of data ?
+  sub isCharacterStream      {                1 } # Character stream ?
+  sub encoding               {                  } # Encoding ? Let's ESLIF guess.
+  sub data                   {    shift->{data} } # data
+  sub isWithDisableThreshold {                0 } # Disable threshold warning ?
+  sub isWithExhaustion       {                0 } # Exhaustion event ?
+  sub isWithNewline          {                1 } # Newline count ?
+  sub isWithTrack            {                0 } # Absolute position tracking ?
+  1;
+
+  package MyValue;
+  sub new                { bless { result => undef}, shift }
+  sub isWithHighRankOnly { 1 }  # When there is the rank adverb: highest ranks only ?
+  sub isWithOrderByRank  { 1 }  # When there is the rank adverb: order by rank ?
+  sub isWithAmbiguous    { 0 }  # Allow ambiguous parse ?
+  sub isWithNull         { 0 }  # Allow null parse ?
+  sub maxParses          { 0 }  # Maximum number of parse tree values
+  sub getResult          { my ($self) = @_; $self->{result} }
+  sub setResult          { my ($self, $result) = @_; $self->{result} = $result }
+  1;
+  
   package main;
   use Log::Any qw/$log/, default_adapter => qw/Stdout/;
   use MarpaX::ESLIF;
-  use MyRecognizer;
-  use MyValue;
   use Test::More;
   
   my %tests = (
@@ -230,8 +256,32 @@ A full example of a calculator with a I<self-contained grammar>, using the recog
 
 The same but with actions writen in B<Perl>:
 
+  package MyRecognizer;
+  sub new {
+      my ($pkg, $string) = @_;
+      open my $fh, "<", \$string;
+      bless { data => undef, fh => $fh }, $pkg
+  }
+  sub read                   { my ($self) = @_; defined($self->{data} = readline($self->{fh})) } # Reader
+  sub isEof                  {  eof shift->{fh} } # End of data ?
+  sub isCharacterStream      {                1 } # Character stream ?
+  sub encoding               {                  } # Encoding ? Let's ESLIF guess.
+  sub data                   {    shift->{data} } # data
+  sub isWithDisableThreshold {                0 } # Disable threshold warning ?
+  sub isWithExhaustion       {                0 } # Exhaustion event ?
+  sub isWithNewline          {                1 } # Newline count ?
+  sub isWithTrack            {                0 } # Absolute position tracking ?
+  1;
+
   package MyValue::Perl;
-  use parent qw/MyValue/;
+  sub new                { bless { result => undef}, shift }
+  sub isWithHighRankOnly { 1 }  # When there is the rank adverb: highest ranks only ?
+  sub isWithOrderByRank  { 1 }  # When there is the rank adverb: order by rank ?
+  sub isWithAmbiguous    { 0 }  # Allow ambiguous parse ?
+  sub isWithNull         { 0 }  # Allow null parse ?
+  sub maxParses          { 0 }  # Maximum number of parse tree values
+  sub getResult          { my ($self) = @_; $self->{result} }
+  sub setResult          { my ($self, $result) = @_; $self->{result} = $result }
   #
   # Here the actions are writen in Perl, they all belong to the valuator namespace 'MyValue'
   #
@@ -247,8 +297,6 @@ The same but with actions writen in B<Perl>:
   package main;
   use Log::Any qw/$log/, default_adapter => qw/Stdout/;
   use MarpaX::ESLIF;
-  use MyRecognizer;
-  use MyValue::Perl;
   use Test::More;
   
   my %tests = (
