@@ -60,12 +60,6 @@ our $IS_WINDOWS = is_os_type('Windows');
 $| = 1;
 
 #
-# A global flag coming from environment that disabled JIT in PCRE2. This should never be needed, but JIT
-# MAY not compile on your architecture.
-#
-our $JIT = $ENV{MARPAESLIFPERL_JIT} // 1;
-
-#
 # Our distribution have both C and CPP files, and we want to make sure that modifying
 # CFLAGS will not affect cpp files. Since we require a version of ExtUtils::CBuilder
 # that support the environment variables, explicitely setting the environment variables
@@ -111,6 +105,8 @@ $ac->check_cc;
 # Sun C compiler is a special case, we know that guess_compiler will always get it wrong
 #
 my $sunc = 0;
+my $is_gnu = check_compiler_is_gnu($ac);
+my $is_clang = check_compiler_is_clang($ac);
 $ac->msg_checking(sprintf "if this is Sun C compiler");
 if ($ac->link_if_else("#ifdef __SUNPRO_C\n#else\n#error \"this is not Sun C compiler\"\n#endif\nint main() { return 0; }")) {
     $ac->msg_result('yes');
@@ -349,7 +345,12 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
             if ($sunc) {
                 push(@flag_candidates, "-xO3"); # CC
             } else {
-                push(@flag_candidates, "-O3 -qstrict"); # xlc
+		#
+		# We know that -qstrict has no meaning for GNU or CLang compilers
+		#
+		if(!$is_gnu && !$is_clang) {
+		    push(@flag_candidates, "-O3 -qstrict"); # xlc maybe
+		}
                 push(@flag_candidates, "-O3"); # cl, gcc, clang
             }
 	    foreach my $flag (@flag_candidates) {
@@ -503,8 +504,6 @@ my $have__O_BINARY = $ac->check_decl('_O_BINARY', { prologue => "#include <fcntl
 my $have_wcrtomb = $ac->check_decl('wcrtomb', { prologue => "#include <wchar.h>" });
 my $have_mbrtowc = $ac->check_decl('mbrtowc', { prologue => "#include <wchar.h>" });
 my $broken_wchar = check_broken_wchar($ac);
-my $is_gnu = check_compiler_is_gnu($ac);
-my $is_clang = check_compiler_is_clang($ac);
 if($has_Werror) {
     my $tmpflag = '-Werror=attributes';
     my $has_Werror_attributes = 0;
@@ -2472,7 +2471,7 @@ BODY
 sub check_compiler_is_gnu {
     my ($ac) = @_;
 
-    $ac->msg_checking('GNU compiler');
+    $ac->msg_checking('if this is GNU compiler');
     my $rc;
     my $prologue = <<PROLOGUE;
 #if !defined(__GNUC__)
@@ -2496,7 +2495,7 @@ PROLOGUE
 sub check_compiler_is_clang {
     my ($ac) = @_;
 
-    $ac->msg_checking('Clang compiler');
+    $ac->msg_checking('if this is Clang compiler');
     my $rc;
     my $prologue = <<PROLOGUE;
 #if !defined(__clang__)
@@ -3456,44 +3455,10 @@ sub process_pcre2 {
 
     my $b = get_cbuilder();
     my @include_dirs = ( File::Spec->catfile($outdir, 'src') );
-    copy(File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c.dist'), File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c'));
-    my @sources =
-        (
-         File::Spec->catfile($outdir, 'src', 'pcre2_auto_possess.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_compile.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_config.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_context.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_convert.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_dfa_match.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_error.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_extuni.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_find_bracket.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_jit_compile.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_maketables.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_match.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_match_data.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_newline.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_ord2utf.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_pattern_info.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_script_run.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_serialize.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_string_utils.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_study.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_substitute.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_substring.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_tables.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_ucd.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_valid_utf.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_xclass.c'),
-         File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c')
-        );
     my @extra_compiler_flags = ();
     push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
     push(@extra_compiler_flags, "-DPCRE2_CODE_UNIT_WIDTH=8");
     push(@extra_compiler_flags, "-DPCRE2_STATIC=1");
-    if ($JIT) {
-	push(@extra_compiler_flags, "-DSUPPORT_JIT=1");
-    }
     push(@extra_compiler_flags, "-DDHAVE_CONFIG_H=1");
     #
     # SUPPORT_UNICODE and EBCDIC are not compatible
@@ -3513,6 +3478,69 @@ sub process_pcre2 {
     push(@extra_compiler_flags, '-DPCRE2GREP_BUFSIZE=20480');
     push(@extra_compiler_flags, '-DMAX_NAME_SIZE=32');
     push(@extra_compiler_flags, '-DMAX_NAME_COUNT=10000');
+    #
+    # We check if pcre2_jit compiles. It happens that it does not, usually because
+    # of the compiler version
+    #
+    $ac->msg_checking("if enabling JIT in PCRE2 compiles");
+    my $pcre2_jit_compile_c = File::Spec->catfile($outdir, 'src', 'pcre2_jit_compile.c');
+    push(@extra_compiler_flags, "-DSUPPORT_JIT=1");
+    my $jit_is_ok = 1;
+    try {
+        $b->compile
+            (
+             source => $pcre2_jit_compile_c,
+             object_file => get_object_file($pcre2_jit_compile_c),
+             include_dirs => \@include_dirs,
+             extra_compiler_flags => \@extra_compiler_flags
+            );
+	$ac->msg_result("yes");
+    } catch {
+	$ac->msg_result("no");
+	pop(@extra_compiler_flags);
+	$jit_is_ok = 0;
+    };
+    #
+    # Compile all remaining PCRE2 files. See that $pcre2_jit_compile_c is still present in the source.
+    # But it compiles to a no-op if SUPPORT_JIT is not set.
+    #
+    copy(File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c.dist'), File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c'));
+    my @sources =
+        (
+         File::Spec->catfile($outdir, 'src', 'pcre2_auto_possess.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_compile.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_config.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_context.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_convert.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_dfa_match.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_error.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_extuni.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_find_bracket.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_maketables.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_match.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_match_data.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_newline.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_ord2utf.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_pattern_info.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_script_run.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_serialize.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_string_utils.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_study.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_substitute.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_substring.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_tables.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_ucd.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_valid_utf.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_xclass.c'),
+         File::Spec->catfile($outdir, 'src', 'pcre2_chartables.c')
+        );
+    if (! $jit_is_ok) {
+	#
+	# pcre2_jit_compile.c did not compile. Add it again, this time SUPPORT_JIT will not be set,
+	# so it must have to compile fine.
+	#
+	push(@sources, $pcre2_jit_compile_c);
+    }
     foreach my $source (@sources) {
         $b->compile
             (
