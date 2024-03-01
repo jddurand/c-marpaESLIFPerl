@@ -313,8 +313,6 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
 	$optimize =~ s/\s$//;
 	$ac->msg_notice("Forced optimization flags: $optimize");
     } else {
-	$ac->msg_checking("optimization flags:");
-	$ac->msg_result('');
 	if (($cbuilder_config{cc} // 'cc') eq 'cl') {
 	    foreach my $flag ("/O2") {
 		$ac->msg_checking("if flag $flag works:");
