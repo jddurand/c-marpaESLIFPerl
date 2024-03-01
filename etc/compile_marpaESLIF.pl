@@ -309,6 +309,8 @@ my $has_Werror = 0;
 if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
     if(defined($ENV{MARPAESLIFPERL_OPTIM_FLAGS})) {
 	$optimize = "$ENV{MARPAESLIFPERL_OPTIM_FLAGS}";
+	$optimize =~ s/^\s*//;
+	$optimize =~ s/\s$//;
 	$ac->msg_notice("Forced optimization flags: $optimize");
     } else {
 	$ac->msg_checking("optimization flags:");
@@ -318,7 +320,7 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
 		$ac->msg_checking("if flag $flag works:");
 		if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => $flag })) {
 		    $ac->msg_result('yes');
-		    $optimize .= " $flag";
+		    $optimize = $flag;
 		    last;
 		} else {
 		    $ac->msg_result('no');
@@ -344,20 +346,17 @@ if(! defined($ENV{MARPAESLIFPERL_OPTIM}) || $ENV{MARPAESLIFPERL_OPTIM}) {
             my @flag_candidates = ();
             if ($sunc) {
                 push(@flag_candidates, "-xO3"); # CC
+            } elsif ($is_gnu || $is_clang) {
+                push(@flag_candidates, "-O3"); # gcc, clang
             } else {
-		#
-		# We know that -qstrict has no meaning for GNU or CLang compilers
-		#
-		if(!$is_gnu && !$is_clang) {
-		    push(@flag_candidates, "-O3 -qstrict"); # xlc maybe
-		}
-                push(@flag_candidates, "-O3"); # cl, gcc, clang
+                push(@flag_candidates, "-O3 -qstrict"); # xlc maybe ?
+                push(@flag_candidates, "-O3"); # Others
             }
 	    foreach my $flag (@flag_candidates) {
 		$ac->msg_checking("if flag $flag works:");
 		if (try_compile("#include <stdlib.h>\nint main() {\n  exit(0);\n}\n", { extra_compiler_flags => "$tmpflag $flag" })) {
 		    $ac->msg_result('yes');
-		    $optimize .= " $flag";
+		    $optimize = $flag;
 		    last;
 		} else {
 		    $ac->msg_result('no');
